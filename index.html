@@ -230,6 +230,7 @@
   .board-actions .invite:hover { background: #ffedd5; }
   .board-actions .invite[hidden], .board-actions .add-player[hidden] { display: none; }
   th.name-cell.empty-seat .name { color: #c2410c; font-style: italic; }
+  th.name-cell.dup .name { color: var(--neg); text-decoration: line-through wavy; outline: 2px solid var(--neg); background: #fef2f2; }
   th.name-cell .name::placeholder { color: #c2410c; opacity: .75; font-style: italic; }
   th.name-cell.empty-seat { background: repeating-linear-gradient(135deg, #fff7ed 0 8px, #ffedd5 8px 16px) !important; }
   .chip .short { font-size: 11px; font-weight: 800; color: #c2410c; }
@@ -491,7 +492,8 @@
       <li data-i="🔥"><b>Kebakar:</b> setiap baris dijumlahkan, kalau total seorang pemain <b>disalip</b> (dilewati) pemain lain, totalnya <b>kebakar</b> kembali ke <b>0</b> (tanda 🔥 0). Kalau totalnya cuma <b>sama</b> (misal 350 dan 350), <b>belum kebakar</b>. <b>Titik aman:</b> total <b>100 atau kurang</b> tidak bisa kebakar.</li>
       <li data-i="⏳">Kebakar baru dihitung setelah <b>semua pemain di baris itu mengisi</b>. Yang tidak dapat poin tetap isi <b>0</b>.</li>
       <li data-i="🔀">Pemain dengan nilai <b>terendah</b> dapat tugas mulia <b>mengocok kartu</b>. Pemain dengan nilai <b>tertinggi</b> <b>dapat bagian kartu duluan</b>.</li>
-      <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang. Klik <b>🔄 Main Lagi dari Nol</b> untuk mulai lagi dengan pemain yang sama.</li>
+      <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang. Tombol <b>🔄 Main Lagi</b> memulai dari nol dengan pemain yang sama (bisa juga di tengah permainan); <b>Reset</b> menghapus skor dan nama.</li>
+      <li data-i="🪪">Nama pemain <b>tidak boleh sama</b>, termasuk dengan pemain di lapak lain.</li>
     </ul>
   </section>
 
@@ -798,7 +800,8 @@
         '<div class="board-actions">' +
           '<button class="add-player">+ Pemain</button>' +
           '<button class="add-row primary">+ Baris</button>' +
-          '<button class="reset danger">Reset</button>' +
+          '<button class="replay-btn" title="Mulai lagi dari nol: skor jadi 0, nama pemain tetap">🔄 Main Lagi</button>' +
+          '<button class="reset danger" title="Hapus semua skor dan nama pemain">Reset</button>' +
           '<button class="invite" hidden></button>' +
           '<button class="del danger" title="Hapus lapak" aria-label="Hapus lapak">🗑</button>' +
         '</div>' +
@@ -814,15 +817,17 @@
     const banner = el.querySelector('.banner');
     const rolesEl = el.querySelector('.roles');
     // Sudah ada pemenang → mulai permainan baru: skor kembali 0, nama pemain tetap
-    banner.addEventListener('click', e => {
-      if (!e.target.closest('.replay')) return;
-      if (!confirm('Mulai permainan baru di "' + board.name + '"? Skor semua pemain kembali 0, nama pemain tetap.')) return;
+    // Bisa dipakai kapan saja (sudah ada pemenang atau masih di tengah permainan)
+    function replay() {
+      if (!confirm('Mulai lagi dari nol di "' + board.name + '"? Skor semua pemain kembali 0, nama pemain tetap.')) return;
       board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
       board.auto = {};
       write(bpath(), boardToRemote(board));
       save(); render();
       toast('🔄 Permainan baru dimulai di ' + board.name + '. Semangat!', 'info');
-    });
+    }
+    banner.addEventListener('click', e => { if (e.target.closest('.replay')) replay(); });
+    el.querySelector('.replay-btn').addEventListener('click', replay);
     const wrap = el.querySelector('.wrap');
     let resets = [];
     let pendingRows = [];
@@ -847,10 +852,23 @@
         inp.placeholder = 'Pemain ' + (c + 1);
         th.classList.toggle('empty-seat', isEmptySeat(name));
         inp.addEventListener('input', () => {
+          // Nama tidak boleh sama dengan pemain lain (di lapak mana pun)
+          const dup = nameTaken(inp.value, board, c);
+          th.classList.toggle('dup', !!dup);
+          inp.title = dup ? 'Nama "' + inp.value.trim() + '" sudah dipakai di ' + dup : '';
+          if (dup) return; // tidak disimpan sampai namanya beda
           board.players[c] = inp.value;
           th.classList.toggle('empty-seat', isEmptySeat(inp.value));
           write(bpath('players/' + c), inp.value);
           save(); renderTotals();
+        });
+        inp.addEventListener('blur', () => {
+          if (!th.classList.contains('dup')) return;
+          const bad = inp.value.trim();
+          inp.value = board.players[c]; // kembali ke nama sebelumnya
+          th.classList.remove('dup');
+          inp.title = '';
+          toast('Nama "' + bad + '" sudah dipakai, pakai nama lain (misal ' + bad + ' 2)');
         });
         th.querySelector('button').addEventListener('click', () => {
           if (!confirm('Hapus pemain "' + playerName(c) + '" dari ' + board.name + ' beserta semua nilainya?')) return;
@@ -1230,6 +1248,16 @@
   // Satu lapak idealnya 4 pemain. Kursi dianggap kosong kalau namanya kosong atau masih "Pemain N".
   const SEATS = 4;
   const isEmptySeat = name => !String(name || '').trim() || /^pemain \d+$/i.test(String(name).trim());
+  // Cek nama kembar (tanpa beda huruf besar/kecil). Kembalikan nama lapak tempat nama itu dipakai.
+  function nameTaken(name, board, col) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key || isEmptySeat(name)) return null;
+    for (const b of app.boards) {
+      const i = b.players.findIndex((n, k) => !(b === board && k === col) && String(n || '').trim().toLowerCase() === key);
+      if (i >= 0) return b === board ? 'lapak ini' : (b.name || 'lapak lain');
+    }
+    return null;
+  }
   function shortOf(board) {
     return board.players.filter(isEmptySeat).length + Math.max(0, SEATS - board.players.length);
   }
