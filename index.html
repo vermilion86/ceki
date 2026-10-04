@@ -76,7 +76,7 @@
   }
   .target input:focus { outline: 2px solid var(--brand); }
 
-  /* Pilihan tampilan meja (disimpan per HP/perangkat) */
+  /* Pilihan tampilan lapak (disimpan per HP/perangkat) */
   .view {
     max-width: 1000px; margin: 0 auto 16px; display: flex; align-items: center; gap: 6px;
     overflow-x: auto; padding: 2px 0 4px; scrollbar-width: thin;
@@ -91,7 +91,7 @@
   .chip.active { background: var(--b, var(--text)); border-color: var(--b, var(--text)); color: #fff; box-shadow: 0 2px 8px rgba(16,24,40,.15); }
   .chip.active .dot { background: #fff; }
 
-  /* Satu papan skor per meja, masing-masing punya warna sendiri (--b) */
+  /* Satu papan skor per lapak, masing-masing punya warna sendiri (--b) */
   .boards { max-width: 1000px; margin: 0 auto; display: grid; gap: 22px; }
   .board {
     background: var(--surface);
@@ -220,7 +220,7 @@
   .role-line.first { background: #f0fdf4; color: #166534; }
   @media (max-width: 520px) { .role { font-size: 10px; padding: 2px 5px; } .role-line { font-size: 12px; } }
 
-  /* Undangan pemain kalau meja masih kurang */
+  /* Undangan pemain kalau lapak masih kurang */
   .board-actions .invite { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
   .board-actions .invite:hover { background: #ffedd5; }
   .board-actions .invite[hidden] { display: none; }
@@ -401,15 +401,15 @@
 </head>
 <body>
   <header>
-    <div class="brand"><div class="logo" aria-hidden="true">♠</div><div><h1>Papan Skor Remi</h1><small>Lapak pos sukun</small></div></div>
+    <div class="brand"><div class="logo" aria-hidden="true">♠</div><div><h1>Lapak Ceki Pos Sukun</h1><small>Lapak Ceki</small></div></div>
     <div class="actions">
       <label class="target">Target <input id="target" type="text" inputmode="numeric" size="1"></label>
       <button id="soundBtn" class="icon" type="button" title="Suara notifikasi" aria-label="Suara notifikasi">🔊</button>
-      <button id="addBoard" class="primary">+ Meja</button>
+      <button id="addBoard" class="primary">+ Lapak</button>
     </div>
   </header>
 
-  <nav class="view" id="view" aria-label="Tampilkan meja"></nav>
+  <nav class="view" id="view" aria-label="Tampilkan lapak"></nav>
 
   <section class="invite-card" id="inviteCard" hidden>
     <div class="big" aria-hidden="true">🃏</div>
@@ -486,12 +486,12 @@
 
 <script>
 (function () {
-  // Beberapa meja (papan skor), masing-masing biasanya 4 pemain.
+  // Beberapa lapak (papan skor), masing-masing biasanya 4 pemain.
   // app = { target, boards: [{ name, players, rows, auto }] }
   // board.auto = kotak yang diisi 0 otomatis: { baris: { by: kolomPemicu, cols: [kolom...] } }
   const KEY = 'papan-skor-v2';
   const OLD_KEY = 'papan-skor-v1';
-  const VIEW_KEY = 'papan-skor-view'; // meja yang ditampilkan di HP ini: 'all' atau nomor meja
+  const VIEW_KEY = 'papan-skor-view'; // lapak yang ditampilkan di HP ini: 'all' atau nomor lapak
   const COLORS = ['#2563eb', '#ea580c', '#9333ea', '#0d9488', '#db2777', '#65a30d', '#0891b2', '#b45309'];
   const AUTO_ZERO = [250, 300];   // tutup tangan → pemain lain otomatis 0
   const STEP = 5;                 // nilai harus kelipatan 5
@@ -505,15 +505,18 @@
   let app = null;
   try { app = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   if (!app || !Array.isArray(app.boards) || !app.boards.length) {
-    // Pindahkan data versi lama (satu papan) jadi Meja 1
+    // Pindahkan data versi lama (satu papan) jadi Lapak 1
     let old = null;
     try { old = JSON.parse(localStorage.getItem(OLD_KEY)); } catch (e) {}
     const first = old && Array.isArray(old.players)
-      ? Object.assign(newBoard('Meja 1', old.players), { rows: old.rows || [], auto: old.auto || {} })
-      : newBoard('Meja 1', ['Deri', 'Heza', 'Dudi', 'Hendri']);
+      ? Object.assign(newBoard('Lapak 1', old.players), { rows: old.rows || [], auto: old.auto || {} })
+      : newBoard('Lapak 1', ['Budi', 'Joko', 'Asep', 'Ucok']);
     app = { target: (old && old.target) || 1000, boards: [first] };
   }
-  app.boards.forEach(b => { if (!b.auto) b.auto = {}; });
+  app.boards.forEach(b => {
+    if (!b.auto) b.auto = {};
+    b.name = String(b.name || '').replace(/^Meja(\s+\d+)$/i, 'Lapak$1'); // nama lama "Meja 1" → "Lapak 1"
+  });
   delete app.current;
 
   let view = 'all';
@@ -758,7 +761,7 @@
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 3500);
   }
 
-  // ---------- Satu papan skor (meja) ----------
+  // ---------- Satu papan skor (lapak) ----------
   const mounted = []; // papan yang sedang tampil
 
   function mountBoard(bi) {
@@ -770,13 +773,13 @@
     el.innerHTML =
       '<div class="board-head">' +
         '<div class="board-title"><span class="board-no">' + (bi + 1) + '</span>' +
-        '<input class="board-name" size="1" aria-label="Nama meja"></div>' +
+        '<input class="board-name" size="1" aria-label="Nama lapak"></div>' +
         '<div class="board-actions">' +
           '<button class="add-player">+ Pemain</button>' +
           '<button class="add-row primary">+ Baris</button>' +
           '<button class="reset danger">Reset</button>' +
           '<button class="invite" hidden></button>' +
-          '<button class="del danger" title="Hapus meja" aria-label="Hapus meja">🗑</button>' +
+          '<button class="del danger" title="Hapus lapak" aria-label="Hapus lapak">🗑</button>' +
         '</div>' +
       '</div>' +
       '<div class="banner" role="status" aria-live="polite"></div>' +
@@ -1050,7 +1053,7 @@
       const k = shortOf(board);
       inviteBtn.hidden = k === 0;
       inviteBtn.textContent = '📨 Kurang ' + k + ' · Undang';
-      inviteBtn.title = 'Meja ini masih kurang ' + k + ' pemain — kirim link undangan';
+      inviteBtn.title = 'Lapak ini masih kurang ' + k + ' pemain — kirim link undangan';
     }
     inviteBtn.addEventListener('click', () => openInvite(board));
 
@@ -1065,7 +1068,7 @@
     return { el, renderTotals };
   }
 
-  // ---------- Semua meja + pilihan tampilan ----------
+  // ---------- Semua lapak + pilihan tampilan ----------
   function renderAll() {
     if (view !== 'all' && !(+view >= 0 && +view < app.boards.length)) view = 'all';
     boardsEl.innerHTML = '';
@@ -1095,16 +1098,16 @@
       b.addEventListener('click', () => { view = String(value); saveView(); renderAll(); window.scrollTo({ top: 0 }); });
       viewEl.appendChild(b);
     };
-    chip('Semua meja', 'all');
+    chip('Semua lapak', 'all');
     app.boards.forEach((b, i) =>
-      chip(b.name || 'Meja ' + (i + 1), i, colorOf(i), winnersOf(computeTotals(b).t).length > 0, shortOf(b)));
+      chip(b.name || 'Lapak ' + (i + 1), i, colorOf(i), winnersOf(computeTotals(b).t).length > 0, shortOf(b)));
   }
 
   document.getElementById('addBoard').addEventListener('click', () => {
-    // Nomor pemain lanjut dari meja sebelumnya: Meja 2 → Pemain 5–8, Meja 3 → Pemain 9–12
+    // Nomor pemain lanjut dari lapak sebelumnya: Lapak 2 → Pemain 5–8, Lapak 3 → Pemain 9–12
     const used = app.boards.reduce((n, b) => n + b.players.length, 0);
     const players = [1, 2, 3, 4].map(k => 'Pemain ' + (used + k));
-    app.boards.push(newBoard('Meja ' + (app.boards.length + 1), players));
+    app.boards.push(newBoard('Lapak ' + (app.boards.length + 1), players));
     save();
     if (view !== 'all') view = String(app.boards.length - 1);
     saveView(); renderAll();
@@ -1133,7 +1136,7 @@
   });
 
   // ---------- Undangan pemain ----------
-  // Satu meja idealnya 4 pemain. Kursi dianggap kosong kalau namanya kosong atau masih "Pemain N".
+  // Satu lapak idealnya 4 pemain. Kursi dianggap kosong kalau namanya kosong atau masih "Pemain N".
   const SEATS = 4;
   const isEmptySeat = name => !String(name || '').trim() || /^pemain \d+$/i.test(String(name).trim());
   function shortOf(board) {
@@ -1146,12 +1149,12 @@
     const k = shortOf(board);
     const who = board.players.filter(n => !isEmptySeat(n));
     const u = new URL(location.href.split('?')[0].split('#')[0]);
-    u.searchParams.set('undang', board.name || 'Meja');
+    u.searchParams.set('undang', board.name || 'Lapak');
     u.searchParams.set('kurang', k);
     if (who.length) u.searchParams.set('pemain', who.join(', '));
     shareUrl = u.toString();
     shareMsg = '🃏 Main remi yuk!\n' +
-      (board.name || 'Meja') + ' masih kurang ' + k + ' orang' + (k > 1 ? ' lagi' : '') + '.\n' +
+      (board.name || 'Lapak') + ' masih kurang ' + k + ' orang' + (k > 1 ? ' lagi' : '') + '.\n' +
       (who.length ? 'Sudah ada: ' + who.join(', ') + '.\n' : '') +
       'Gabung di sini 👉 ' + shareUrl;
     document.getElementById('shareText').textContent = shareMsg;
