@@ -228,7 +228,7 @@
   /* Undangan pemain kalau lapak masih kurang */
   .board-actions .invite { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
   .board-actions .invite:hover { background: #ffedd5; }
-  .board-actions .invite[hidden] { display: none; }
+  .board-actions .invite[hidden], .board-actions .add-player[hidden] { display: none; }
   th.name-cell.empty-seat .name { color: #c2410c; font-style: italic; }
   th.name-cell.empty-seat { background: repeating-linear-gradient(135deg, #fff7ed 0 8px, #ffedd5 8px 16px) !important; }
   .chip .short { font-size: 11px; font-weight: 800; color: #c2410c; }
@@ -918,6 +918,7 @@
       renderResets();
       renderView();
       updateInvite();
+      updateAddPlayer();
     }
 
     function renderWinner(t) {
@@ -1066,7 +1067,14 @@
     }
 
     el.querySelector('.add-row').addEventListener('click', () => addRow(true));
-    el.querySelector('.add-player').addEventListener('click', () => {
+    // Satu lapak maksimal 4 pemain
+    const addPlayerBtn = el.querySelector('.add-player');
+    const updateAddPlayer = () => {
+      addPlayerBtn.hidden = board.players.length >= SEATS;
+      addPlayerBtn.title = 'Satu lapak maksimal ' + SEATS + ' pemain';
+    };
+    addPlayerBtn.addEventListener('click', () => {
+      if (board.players.length >= SEATS) { toast('Satu lapak maksimal ' + SEATS + ' pemain'); return; }
       board.players.push('Pemain ' + (board.players.length + 1));
       board.rows.forEach(r => r.push(''));
       write(bpath(), boardToRemote(board));
