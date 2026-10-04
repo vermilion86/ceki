@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Papan Skor Remi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef2f7;
+    --surface: #ffffff;
+    --line: #e4e8ef;
+    --line-soft: #eef1f6;
+    --text: #172033;
+    --muted: #6b7486;
+    --pos: #15803d;
+    --neg: #dc2626;
+    --accent: #2563eb;
+    --head: #f7f9fc;
+    --brand: #15803d;
+    --gold: #a16207; --gold-bg: #fef9c3; --gold-line: #facc15;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 400px at 50% -120px, #dff3e7 0%, transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 18px 16px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Judul */
+  header {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    align-items: center; justify-content: space-between;
+    max-width: 1000px; margin: 0 auto 14px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(145deg, #22a35a, #136c3a); color: #fff; font-size: 22px;
+    box-shadow: 0 4px 10px rgba(21,128,61,.3);
+  }
+  h1 { font-size: 21px; margin: 0; line-height: 1.1; letter-spacing: -.2px; }
+  .brand small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  button {
+    font: inherit; font-size: 14px; font-weight: 600;
+    border: 1px solid #d8dee8; background: var(--surface); color: var(--text);
+    padding: 8px 13px; border-radius: 10px; cursor: pointer;
+    transition: background .12s, border-color .12s, transform .05s;
+  }
+  button:hover { background: #f5f7fb; border-color: #c4ccd9; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 2px 6px rgba(21,128,61,.25); }
+  button.primary:hover { filter: brightness(1.06); }
+  button.icon { padding: 7px 10px; font-size: 16px; line-height: 1; }
+  button.icon.off { opacity: .55; }
+  button.danger:hover { border-color: #fca5a5; color: var(--neg); background: #fef2f2; }
+
+  .target {
+    display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted);
+    background: var(--surface); border: 1px solid #d8dee8; border-radius: 10px; padding: 3px 4px 3px 10px;
+  }
+  .target input {
+    width: 64px; font: inherit; font-size: 15px; font-weight: 800; text-align: center; color: var(--text);
+    background: #f3f6fa; border: none; border-radius: 7px; padding: 6px 4px;
+  }
+  .target input:focus { outline: 2px solid var(--brand); }
+
+  /* Pilihan tampilan meja (disimpan per HP/perangkat) */
+  .view {
+    max-width: 1000px; margin: 0 auto 16px; display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; padding: 2px 0 4px; scrollbar-width: thin;
+  }
+  .view[hidden] { display: none; }
+  .view .lbl { flex: none; font-size: 13px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+  .chip {
+    flex: none; display: inline-flex; align-items: center; gap: 7px;
+    border-radius: 999px; padding: 7px 14px; white-space: nowrap; font-size: 13px;
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--b); }
+  .chip.active { background: var(--b, var(--text)); border-color: var(--b, var(--text)); color: #fff; box-shadow: 0 2px 8px rgba(16,24,40,.15); }
+  .chip.active .dot { background: #fff; }
+
+  /* Satu papan skor per meja, masing-masing punya warna sendiri (--b) */
+  .boards { max-width: 1000px; margin: 0 auto; display: grid; gap: 22px; }
+  .board {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 6px solid var(--b);
+    border-radius: 16px; padding: 14px;
+    box-shadow: var(--shadow);
+    transition: box-shadow .15s;
+  }
+  .board:focus-within { box-shadow: 0 0 0 4px color-mix(in srgb, var(--b) 22%, transparent), var(--shadow); }
+  .board-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .board-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 180px; }
+  .board-no {
+    flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--b); color: #fff; font-size: 21px; font-weight: 800;
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--b) 35%, transparent);
+  }
+  .board-name {
+    min-width: 0; flex: 1; font: inherit; font-size: 21px; font-weight: 800; color: var(--text);
+    background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 6px;
+  }
+  .board-name:hover { border-color: var(--line); }
+  .board-name:focus { outline: 2px solid var(--b); background: var(--surface); }
+  .board-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .board-actions .primary { background: var(--b); border-color: var(--b); box-shadow: 0 2px 6px color-mix(in srgb, var(--b) 30%, transparent); }
+  .boards.single .board-actions .del { display: none; }
+
+  /* Tabel skor */
+  /* Tabel tidak punya scroll sendiri, supaya baris nama & total menempel di atas layar saat halaman digulir */
+  .wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+  col.rn { width: 44px; }
+  thead tr.names th:first-child { border-top-left-radius: 11px; }
+  thead tr.names th:last-child { border-top-right-radius: 11px; }
+  tbody tr:last-child td:first-child { border-bottom-left-radius: 11px; }
+  tbody tr:last-child td:last-child { border-bottom-right-radius: 11px; }
+  th, td { border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); text-align: center; }
+  th:last-child, td:last-child { border-right: none; }
+
+  thead th { position: sticky; z-index: 2; }
+  thead tr.names th { top: 0; background: color-mix(in srgb, var(--b, var(--accent)) 10%, #fff); }
+  thead tr.totals th {
+    top: var(--names-h, 56px); background: color-mix(in srgb, var(--b, var(--accent)) 4%, #fff);
+    border-bottom: 2px solid color-mix(in srgb, var(--b, var(--accent)) 30%, var(--line));
+    box-shadow: 0 6px 10px -8px rgba(16,24,40,.25);
+  }
+
+  .rownum {
+    width: 44px; min-width: 44px; color: #9aa3b2; font-size: 12px; font-weight: 600;
+    position: sticky; left: 0; background: var(--head); z-index: 1;
+  }
+  thead .rownum { z-index: 3; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+
+  .name-cell { min-width: 90px; padding: 8px 6px 6px; } /* sticky dari thead th juga jadi patokan tombol × */
+  .name {
+    width: 100%; border: none; background: transparent; color: var(--text);
+    font: inherit; font-size: 20px; font-weight: 800; text-align: center;
+    padding: 6px 4px; border-radius: 8px;
+  }
+  .name:focus { outline: 2px solid var(--b, var(--accent)); background: var(--surface); }
+  .remove-player {
+    position: absolute; top: 3px; right: 3px; padding: 0 6px; font-size: 14px; line-height: 20px;
+    border: none; background: transparent; color: var(--muted); opacity: 0; box-shadow: none;
+  }
+  .remove-player:hover { background: #fee2e2; color: var(--neg); }
+  .name-cell:hover .remove-player, .remove-player:focus { opacity: 1; }
+  @media (hover: none) { .remove-player { opacity: .5; } }
+
+  .total { font-size: 34px; font-weight: 800; padding: 12px 8px; font-variant-numeric: tabular-nums; letter-spacing: -.5px; color: #9aa3b2; }
+  .total.pos { color: var(--pos); }
+  .total.neg { color: var(--neg); }
+
+  td.cell { padding: 0; position: relative; background: var(--surface); }
+  tbody tr:nth-child(even) td.cell { background: #fafbfd; }
+  td.cell input {
+    width: 100%; border: none; background: transparent; color: var(--text);
+    font: inherit; font-size: 19px; font-weight: 600; text-align: center; padding: 11px 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  td.cell input:focus {
+    outline: 3px solid var(--b, var(--accent)); outline-offset: -3px;
+    background: color-mix(in srgb, var(--b, var(--accent)) 7%, #fff);
+  }
+  td.cell input.neg { color: var(--neg); }
+  td.cell input.invalid { outline: 2px solid var(--neg); outline-offset: -2px; background: #fef2f2; }
+  tbody tr:hover td.cell { background: color-mix(in srgb, var(--b, var(--accent)) 4%, #fff); }
+
+  /* Kotak tempat pemain disalip → totalnya kembali ke 0 */
+  tbody tr td.cell.reset { background: #fff1e6; }
+  td.cell.reset::after {
+    content: '🔥 0'; position: absolute; top: 3px; right: 5px;
+    font-size: 10px; font-weight: 800; color: #ea580c; pointer-events: none;
+  }
+
+  @media (max-width: 520px) {
+    col.rn { width: 34px; }
+    body { padding: 12px 12px 96px; }
+    .logo { width: 36px; height: 36px; font-size: 19px; border-radius: 10px; }
+    h1 { font-size: 18px; }
+    .board { padding: 10px; border-radius: 14px; }
+    .board-name { font-size: 18px; }
+    .board-no { width: 34px; height: 34px; font-size: 18px; border-radius: 10px; }
+    .board-actions button { padding: 6px 9px; font-size: 13px; }
+    .rownum { width: 34px; min-width: 34px; font-size: 11px; }
+    .name-cell { min-width: 66px; padding: 6px 2px 4px; }
+    .name { font-size: 15px; padding: 8px 2px 6px; }
+    .remove-player { top: 0; right: 0; font-size: 12px; padding: 0 4px; }
+    .total { font-size: 25px; padding: 10px 2px; }
+    td.cell input { font-size: 17px; }
+  }
+
+  /* Tanda kocok kartu (terendah) & dapat kartu duluan (tertinggi) */
+  .total { vertical-align: top; }
+  .total .num { display: block; }
+  .role {
+    display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0; white-space: nowrap;
+  }
+  .role.first { background: #dcfce7; color: #166534; }
+  .role.shuffle { background: #e0e7ff; color: #3730a3; }
+  .role + .role { margin-left: 2px; }
+  .roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .roles:empty { display: none; }
+  .role-line { font-size: 13px; padding: 6px 10px; border-radius: 10px; }
+  .role-line.shuffle { background: #eef2ff; color: #3730a3; }
+  .role-line.first { background: #f0fdf4; color: #166534; }
+  @media (max-width: 520px) { .role { font-size: 10px; padding: 2px 5px; } .role-line { font-size: 12px; } }
+
+  /* Undangan pemain kalau meja masih kurang */
+  .board-actions .invite { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
+  .board-actions .invite:hover { background: #ffedd5; }
+  .board-actions .invite[hidden] { display: none; }
+  .chip .short { font-size: 11px; font-weight: 800; color: #c2410c; }
+  .chip.active .short { color: #fff; }
+  .invite-card {
+    max-width: 1000px; margin: 0 auto 16px; padding: 14px 16px; border-radius: 14px;
+    background: linear-gradient(135deg, #fff7ed, #fef3c7); border: 1px solid #fdba74; color: #7c2d12;
+    display: flex; gap: 12px; align-items: flex-start; box-shadow: var(--shadow);
+  }
+  .invite-card[hidden] { display: none; }
+  .invite-card .big { font-size: 30px; line-height: 1; }
+  .invite-card h2 { margin: 0 0 4px; font-size: 17px; }
+  .invite-card p { margin: 0; font-size: 14px; line-height: 1.5; }
+  .invite-card button { margin-left: auto; flex: none; }
+  dialog.share {
+    border: none; border-radius: 16px; padding: 18px; width: min(420px, calc(100% - 32px));
+    box-shadow: 0 20px 50px rgba(16,24,40,.3); color: var(--text);
+  }
+  dialog.share::backdrop { background: rgba(16,24,40,.45); }
+  dialog.share h3 { margin: 0 0 10px; font-size: 17px; }
+  dialog.share pre {
+    white-space: pre-wrap; word-break: break-word; margin: 0 0 14px; padding: 12px; border-radius: 10px;
+    background: #f3f6fa; font: inherit; font-size: 13px; line-height: 1.5;
+  }
+  dialog.share .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  dialog.share .wa { background: #25d366; border-color: #25d366; color: #fff; }
+
+  /* Pemenang */
+  .banner {
+    display: none; margin: 0 0 12px; padding: 12px 16px;
+    border-radius: 12px; background: var(--gold-bg); color: var(--gold);
+    border: 1px solid var(--gold-line); font-size: 21px; font-weight: 800; text-align: center;
+    box-shadow: 0 4px 14px rgba(250,204,21,.25);
+  }
+  .banner.show { display: block; animation: pop .4s ease-out; }
+  .banner small { display: block; font-size: 13px; font-weight: 600; margin-top: 2px; opacity: .85; }
+  @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  thead tr th.winner { background: var(--gold-bg); }
+  thead th.winner .name, thead th.total.winner { color: var(--gold); }
+  .crown { display: none; font-size: 18px; line-height: 1; }
+  th.winner .crown { display: block; }
+
+  /* Info poin kartu remi */
+  .info {
+    max-width: 1000px; margin: 14px auto 0; padding: 18px 16px 16px;
+    border-radius: 14px; color: #f3f6f2;
+    background:
+      radial-gradient(120% 140% at 50% 0%, #1f7a4a 0%, #135c36 55%, #0d4428 100%);
+    border: 1px solid #0b3a22;
+    box-shadow: inset 0 0 0 4px rgba(255,255,255,.04), 0 6px 20px rgba(0,0,0,.18);
+  }
+  .info-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .info h2 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+  .info h2 .suits { color: #fca5a5; margin-left: 6px; font-weight: 400; }
+  .info-head span { font-size: 12px; opacity: .75; }
+
+  .groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .group {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 14px 6px 12px; border-radius: 12px;
+    background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08);
+  }
+  .fan { position: relative; height: 84px; width: 100%; }
+  .pc {
+    position: absolute; left: 50%; bottom: 0; width: 52px; height: 74px; margin-left: -26px;
+    background: #fff; color: #111; border-radius: 6px; border: 1px solid #d4d4d4;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    font-family: Georgia, "Times New Roman", serif; transform-origin: 50% 110%;
+  }
+  .pc.red { color: #c81e1e; }
+  .pc .c { position: absolute; top: 3px; left: 5px; font-size: 14px; font-weight: 700; line-height: 1; text-align: center; }
+  .pc .c i { display: block; font-style: normal; font-size: 11px; }
+  .pc .c.br { top: auto; left: auto; bottom: 3px; right: 5px; transform: rotate(180deg); }
+  .pc .m { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; }
+  .pc.face .m { font-size: 22px; font-weight: 700; }
+  .fan .pc:nth-child(1):not(:only-child) { transform: rotate(-14deg) translateX(-14px); }
+  .fan .pc:nth-child(2) { transform: translateY(-3px); }
+  .fan .pc:nth-child(3) { transform: rotate(14deg) translateX(14px); }
+  .fan .pc:only-child { transform: rotate(-4deg); }
+
+  .label { font-size: 15px; font-weight: 800; text-align: center; }
+  .label small { display: block; font-size: 11px; font-weight: 500; opacity: .7; margin-top: 1px; }
+  .badge {
+    display: inline-flex; align-items: baseline; gap: 3px;
+    padding: 4px 12px; border-radius: 999px;
+    background: linear-gradient(#fde68a, #f59e0b); color: #3b2300;
+    font-weight: 800; font-size: 13px; box-shadow: 0 2px 0 #b45309;
+  }
+  .badge b { font-size: 18px; }
+
+  .group.minus { background: rgba(127,29,29,.35); border-color: rgba(252,165,165,.25); }
+  .badge.neg { background: linear-gradient(#fecaca, #ef4444); color: #450a0a; box-shadow: 0 2px 0 #991b1b; }
+  .pc.joker .m { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #c81e1e; }
+  .pc.joker .m::before { content: '★'; font-size: 22px; line-height: 1; color: #111; }
+  .pc.joker .m span { font-size: 9px; font-weight: 800; letter-spacing: .5px; }
+  @media (max-width: 520px) { .pc.joker .m::before { font-size: 16px; } .pc.joker .m span { font-size: 7px; } }
+
+  .info h3 { font-size: 14px; margin: 16px 0 8px; letter-spacing: .3px; opacity: .9; }
+  .specials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .special {
+    display: flex; align-items: center; gap: 12px; padding: 12px;
+    border-radius: 12px; background: rgba(0,0,0,.18); border: 1px solid rgba(253,230,138,.25);
+  }
+  .special .num {
+    flex: none; font-size: 26px; font-weight: 900; color: #fde68a; font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 0 rgba(0,0,0,.3);
+  }
+  .special .txt b { display: block; font-size: 14px; }
+  .special .txt span { font-size: 12px; opacity: .8; }
+
+  .rules { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px dashed rgba(255,255,255,.18); display: grid; gap: 6px; font-size: 13px; line-height: 1.5; }
+  .rules li { position: relative; padding-left: 28px; }
+  .rules li::before { content: attr(data-i); position: absolute; left: 0; top: 0; width: 20px; text-align: center; }
+  .rules b { color: #fde68a; }
+
+  @media (max-width: 720px) {
+    .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 520px) {
+    .specials { grid-template-columns: 1fr; }
+    .groups { gap: 6px; }
+    .pc { width: 40px; height: 58px; margin-left: -20px; }
+    .fan { height: 68px; }
+    .pc .m { font-size: 20px; }
+    .pc.face .m { font-size: 17px; }
+    .pc .c { font-size: 11px; } .pc .c i { font-size: 9px; }
+    .fan .pc:nth-child(1):not(:only-child) { transform: rotate(-14deg) translateX(-10px); }
+    .fan .pc:nth-child(3) { transform: rotate(14deg) translateX(10px); }
+    .label { font-size: 13px; }
+  }
+
+  /* Tombol ± untuk HP (keyboard angka di HP sering tidak punya tanda minus) */
+  #signBtn {
+    position: fixed; right: 16px; bottom: 16px; z-index: 10;
+    width: 56px; height: 56px; border-radius: 50%;
+    font-size: 26px; font-weight: 700; display: none;
+    background: var(--accent); color: #fff; border: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  }
+  #signBtn.show { display: block; }
+
+  /* Notifikasi (bisa bertumpuk) */
+  #toasts {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 11;
+    width: max-content; max-width: calc(100% - 32px);
+    display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    padding: 10px 16px; border-radius: 12px; text-align: center;
+    background: var(--neg); color: #fff; font-size: 14px; font-weight: 700;
+    box-shadow: 0 8px 24px rgba(16,24,40,.22);
+    animation: toastIn .25s ease-out;
+  }
+  .toast.out { opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .25s; }
+  .toast.info { background: var(--accent); }
+  .toast.burn { background: linear-gradient(135deg, #f97316, #dc2626); }
+  .toast.close { background: linear-gradient(135deg, #16a34a, #0f766e); }
+  .toast.joker { background: linear-gradient(135deg, #7c3aed, #db2777); }
+  .toast.big { font-size: 17px; padding: 12px 20px; }
+  .toast small { display: block; font-size: 12px; font-weight: 600; opacity: .9; margin-top: 2px; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+
+  /* Baris yang belum lengkap diisi → kebakar ditunda */
+  tbody tr.pending td.rownum { color: #b45309; background: #fffbeb; }
+  tbody tr.pending td.rownum::after { content: '⏳'; display: block; font-size: 10px; line-height: 1; margin-top: 1px; }
+  tbody tr.pending td.cell input:placeholder-shown { background: #fffbeb; }
+
+  /* Kotak tutup tangan */
+  td.cell.tt::before {
+    content: 'TUTUP'; position: absolute; top: 3px; left: 5px; pointer-events: none;
+    font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #15803d;
+  }
+  td.cell.tt.joker::before { content: 'TUTUP 🃏'; color: #7c3aed; }
+  tbody tr td.cell.tt { background: #ecfdf3; }
+  tbody tr td.cell.tt.joker { background: #f5f0ff; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="logo" aria-hidden="true">♠</div><div><h1>Papan Skor Remi</h1><small>Pencatat poin tiap meja</small></div></div>
+    <div class="actions">
+      <label class="target">Target <input id="target" type="text" inputmode="numeric" size="1"></label>
+      <button id="soundBtn" class="icon" type="button" title="Suara notifikasi" aria-label="Suara notifikasi">🔊</button>
+      <button id="addBoard" class="primary">+ Meja</button>
+    </div>
+  </header>
+
+  <nav class="view" id="view" aria-label="Tampilkan meja"></nav>
+
+  <section class="invite-card" id="inviteCard" hidden>
+    <div class="big" aria-hidden="true">🃏</div>
+    <div><h2 id="inviteTitle"></h2><p id="inviteText"></p></div>
+    <button type="button" id="inviteClose" aria-label="Tutup undangan">✕</button>
+  </section>
+
+  <main class="boards" id="boards"></main>
+
+  <dialog class="share" id="shareDlg">
+    <h3>📨 Undang pemain</h3>
+    <pre id="shareText"></pre>
+    <div class="row">
+      <button type="button" id="shareClose">Batal</button>
+      <button type="button" id="shareCopy">Salin</button>
+      <button type="button" id="shareNative" hidden>Bagikan…</button>
+      <button type="button" id="shareWa" class="wa">WhatsApp</button>
+    </div>
+  </dialog>
+
+  <section class="info" aria-label="Info poin kartu remi">
+    <div class="info-head">
+      <h2>Poin Kartu Remi <span class="suits">♠♥♦♣</span></h2>
+      <span>Hitung poin kartu di tangan, lalu tulis totalnya</span>
+    </div>
+    <div class="groups">
+      <div class="group">
+        <div class="fan" aria-hidden="true"><div class="pc"><span class="c">2<i>♣</i></span><span class="m">♣</span><span class="c br">2<i>♣</i></span></div><div class="pc red"><span class="c">7<i>♥</i></span><span class="m">♥</span><span class="c br">7<i>♥</i></span></div><div class="pc"><span class="c">10<i>♠</i></span><span class="m">♠</span><span class="c br">10<i>♠</i></span></div></div>
+        <div class="label">2 – 10<small>Kartu angka</small></div>
+        <div class="badge"><b>5</b> poin</div>
+      </div>
+      <div class="group">
+        <div class="fan" aria-hidden="true"><div class="pc red face"><span class="c">J<i>♦</i></span><span class="m">J</span><span class="c br">J<i>♦</i></span></div><div class="pc face"><span class="c">Q<i>♠</i></span><span class="m">Q</span><span class="c br">Q<i>♠</i></span></div><div class="pc red face"><span class="c">K<i>♥</i></span><span class="m">K</span><span class="c br">K<i>♥</i></span></div></div>
+        <div class="label">J · Q · K<small>Kartu gambar</small></div>
+        <div class="badge"><b>10</b> poin</div>
+      </div>
+      <div class="group">
+        <div class="fan" aria-hidden="true"><div class="pc"><span class="c">A<i>♠</i></span><span class="m">♠</span><span class="c br">A<i>♠</i></span></div></div>
+        <div class="label">AS<small>Kartu As</small></div>
+        <div class="badge"><b>15</b> poin</div>
+      </div>
+      <div class="group minus">
+        <div class="fan" aria-hidden="true"><div class="pc joker"><span class="c">★</span><span class="m"><span>JOKER</span></span><span class="c br">★</span></div></div>
+        <div class="label">JOKER<small>Tidak jadi seri / tris</small></div>
+        <div class="badge neg"><b>−50</b> poin</div>
+      </div>
+    </div>
+
+    <h3>🏅 Poin spesial</h3>
+    <div class="specials">
+      <div class="special">
+        <div class="num">250</div>
+        <div class="txt"><b>Tutup Tangan</b><span>Menutup permainan dengan semua kartu jadi, tanpa Joker.</span></div>
+      </div>
+      <div class="special">
+        <div class="num">300</div>
+        <div class="txt"><b>Tutup Tangan pakai Joker</b><span>Menutup permainan dengan Joker ikut jadi di susunan kartu.</span></div>
+      </div>
+    </div>
+    <h3>📋 Cara main &amp; aturan skor</h3>
+    <ul class="rules">
+      <li data-i="🧮">Setiap ronde selesai, jumlahkan poin kartu di tangan lalu tulis di kolom pemain. Kartu yang belum jadi dicatat <b>minus</b> (contoh <b>-35</b>).</li>
+      <li data-i="🃏">Joker yang masih di tangan dan tidak masuk <b>seri</b> atau <b>tris</b> kena potongan <b>−50</b>.</li>
+      <li data-i="🎯">Pemain yang <b>tutup tangan</b> cukup diisi <b>250</b> (atau <b>300</b> kalau pakai Joker), pemain lain otomatis <b>0</b> di ronde itu.</li>
+      <li data-i="🔥"><b>Kebakar:</b> setiap baris dijumlahkan, kalau total seorang pemain <b>disalip</b> (dilewati) pemain lain, totalnya <b>kebakar</b> kembali ke <b>0</b> (tanda 🔥 0). Kalau totalnya cuma <b>sama</b> (misal 350 dan 350), <b>belum kebakar</b>. <b>Titik aman:</b> total <b>100 atau kurang</b> tidak bisa kebakar.</li>
+      <li data-i="⏳">Kebakar baru dihitung setelah <b>semua pemain di baris itu mengisi</b>. Yang tidak dapat poin tetap isi <b>0</b>.</li>
+      <li data-i="🔀">Pemain dengan nilai <b>terendah</b> dapat tugas mulia <b>mengocok kartu</b>. Pemain dengan nilai <b>tertinggi</b> <b>dapat bagian kartu duluan</b>.</li>
+      <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang.</li>
+    </ul>
+  </section>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <button id="signBtn" type="button" aria-label="Ganti tanda plus/minus">±</button>
+
+<script>
+(function () {
+  // Beberapa meja (papan skor), masing-masing biasanya 4 pemain.
+  // app = { target, boards: [{ name, players, rows, auto }] }
+  // board.auto = kotak yang diisi 0 otomatis: { baris: { by: kolomPemicu, cols: [kolom...] } }
+  const KEY = 'papan-skor-v2';
+  const OLD_KEY = 'papan-skor-v1';
+  const VIEW_KEY = 'papan-skor-view'; // meja yang ditampilkan di HP ini: 'all' atau nomor meja
+  const COLORS = ['#2563eb', '#ea580c', '#9333ea', '#0d9488', '#db2777', '#65a30d', '#0891b2', '#b45309'];
+  const AUTO_ZERO = [250, 300];   // tutup tangan → pemain lain otomatis 0
+  const STEP = 5;                 // nilai harus kelipatan 5
+  const SAFE_LIMIT = 100;         // total di atas ini bisa kembali ke 0 kalau disalip
+
+  const newBoard = (name, players) => ({
+    name, players, auto: {},
+    rows: Array.from({ length: 10 }, () => players.map(() => ''))
+  });
+
+  let app = null;
+  try { app = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  if (!app || !Array.isArray(app.boards) || !app.boards.length) {
+    // Pindahkan data versi lama (satu papan) jadi Meja 1
+    let old = null;
+    try { old = JSON.parse(localStorage.getItem(OLD_KEY)); } catch (e) {}
+    const first = old && Array.isArray(old.players)
+      ? Object.assign(newBoard('Meja 1', old.players), { rows: old.rows || [], auto: old.auto || {} })
+      : newBoard('Meja 1', ['Deri', 'Heza', 'Dudi', 'Hendri']);
+    app = { target: (old && old.target) || 1000, boards: [first] };
+  }
+  app.boards.forEach(b => { if (!b.auto) b.auto = {}; });
+  delete app.current;
+
+  let view = 'all';
+  try { view = localStorage.getItem(VIEW_KEY) || 'all'; } catch (e) {}
+
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(app)); } catch (e) {} };
+  const saveView = () => { try { localStorage.setItem(VIEW_KEY, view); } catch (e) {} };
+
+  const boardsEl = document.getElementById('boards');
+  const viewEl = document.getElementById('view');
+  const signBtn = document.getElementById('signBtn');
+  const targetInput = document.getElementById('target');
+
+  const colorOf = i => COLORS[i % COLORS.length];
+  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const fmt = n => (Math.round(n * 100) / 100).toLocaleString('id-ID');
+
+  // Terima "-35", "+20", "−35" (minus unicode)
+  function parse(v) {
+    v = String(v).trim().replace(/−/g, '-').replace(/\s/g, '');
+    if (v === '' || v === '-' || v === '+') return 0;
+    const n = Number(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  // Nilai skor harus bilangan bulat kelipatan 5 (5, 10, 15, ... atau minusnya). Kosong = 0.
+  function score(v) {
+    v = String(v ?? '').trim().replace(/−/g, '-');
+    if (v === '') return 0;
+    if (!/^[-+]?\d+$/.test(v)) return NaN;
+    const n = Number(v);
+    return n % STEP === 0 ? n : NaN;
+  }
+
+  // Aturan kebakar: total dihitung baris demi baris. Kalau setelah sebuah baris pemain A
+  // disalip (pemain lain yang tadinya di bawah/sama dengan A sekarang LEBIH BESAR dari A), total A kebakar → 0.
+  // Kalau totalnya cuma sama (misal 350 dan 350), belum kebakar — baru kebakar kalau nanti dilewati.
+  // Titik aman: total A pas 100 atau di bawahnya tidak kebakar.
+  // Kebakar baru dicek setelah SEMUA pemain di baris itu mengisi (kosong = belum mengisi),
+  // karena pemain lain mungkin juga dapat poin di ronde yang sama.
+  function computeTotals(board) {
+    const n = board.players.length;
+    let t = Array(n).fill(0);
+    const resets = [];
+    const pending = []; // baris yang baru sebagian diisi
+    board.rows.forEach((row, r) => {
+      const before = t;
+      const after = before.map((v, c) => { const x = score(row[c]); return v + (isNaN(x) ? 0 : x); });
+      const next = after.slice();
+      const filled = board.players.map((_, c) => String(row[c] ?? '').trim() !== '' && !isNaN(score(row[c])));
+      if (!filled.every(Boolean)) {
+        if (filled.some(Boolean)) pending.push(r);
+        t = next;
+        return;
+      }
+      for (let p = 0; p < n; p++) {
+        if (after[p] <= SAFE_LIMIT) continue;
+        const by = [];
+        for (let q = 0; q < n; q++) {
+          // Dari posisi sama (misal 350 & 350) juga dihitung menyalip, asal sebelumnya sudah di atas titik aman
+          const wasBehind = before[q] < before[p] || (before[q] === before[p] && before[p] > SAFE_LIMIT);
+          if (q !== p && wasBehind && after[q] > after[p]) by.push(q);
+        }
+        if (by.length) { resets.push({ r, c: p, by, lost: after[p] }); next[p] = 0; }
+      }
+      t = next;
+    });
+    return { t, resets, pending };
+  }
+
+  // Pemenang = pemain dengan total >= target. Kalau lebih dari satu, yang nilainya paling tinggi.
+  function winnersOf(t) {
+    const max = Math.max(...t);
+    return max >= app.target ? t.map((_, i) => i).filter(i => t[i] === max) : [];
+  }
+
+  // ---------- Suara notifikasi (dibuat langsung dengan Web Audio, tanpa file) ----------
+  const SOUND_KEY = 'papan-skor-sound';
+  let soundOn = true;
+  try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) {}
+  let actx = null;
+  function audio() {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  // Browser HP hanya mengizinkan suara setelah ada sentuhan/ketikan, jadi siapkan audio di interaksi pertama
+  let speechReady = false;
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => {
+    if (!soundOn) return;
+    audio();
+    if (speech && !speechReady) { speechReady = true; const u = new SpeechSynthesisUtterance(''); u.volume = 0; speech.speak(u); }
+  }, { passive: true }));
+
+  function tone(ctx, { freq, to, start = 0, dur = .2, type = 'sine', vol = .25 }) {
+    const t0 = ctx.currentTime + start;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + .015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(t0); o.stop(t0 + dur + .05);
+  }
+  function noise(ctx, { start = 0, dur = .6, vol = .3, from = 3000, to = 300 }) {
+    const t0 = ctx.currentTime + start;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < .08 ? 1 : .35); // kresek api
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = buf;
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(from, t0);
+    f.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f).connect(g).connect(ctx.destination);
+    src.start(t0);
+  }
+
+  // ---------- Suara orang (pembaca teks bawaan browser) ----------
+  const speech = window.speechSynthesis;
+  let voice = null;
+  function pickVoice() {
+    if (!speech) return;
+    const vs = speech.getVoices();
+    // Utamakan suara Bahasa Indonesia; kalau tidak ada, pakai suara bawaan
+    voice = vs.find(v => /^id[-_]/i.test(v.lang) && /google/i.test(v.name)) || vs.find(v => /^id[-_]/i.test(v.lang)) || null;
+  }
+  if (speech) { pickVoice(); speech.addEventListener?.('voiceschanged', pickVoice); }
+
+  function speak(text) {
+    return new Promise(done => {
+      if (!speech || !text) return done();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = voice ? voice.lang : 'id-ID';
+      if (voice) u.voice = voice;
+      u.rate = 1.05; u.pitch = 1.1; u.volume = 1;
+      const fallback = setTimeout(done, 6000); // jaga-jaga kalau onend tidak terpanggil
+      u.onend = u.onerror = () => { clearTimeout(fallback); done(); };
+      speech.speak(u);
+    });
+  }
+
+  // Kalimat lucu yang diucapkan, dipilih acak. {n} = nama pemain, {by} = penyalip.
+  const LINES = {
+    joker: [
+      'Astaga naga! {n} tutup tangan pakai joker!',
+      'Alamak! {n} tutup tangan pakai joker! Jokernya setia banget!',
+      'Ampun bang jago! {n} tutup tangan pakai joker!',
+      'Waduh waduh! {n} tutup tangan pakai joker! Yang lain cuma bisa gigit jari.',
+      'Wah curang nih! Eh nggak deng. {n} tutup tangan pakai joker!',
+      'Sultan datang! {n} tutup tangan pakai joker!'
+    ],
+    close: [
+      'Mantul! {n} tutup tangan!',
+      'Uhuy! {n} tutup tangan! Gaspol!',
+      'Sikat! {n} tutup tangan!',
+      'Ciee, {n} tutup tangan! Yang lain sabar ya.',
+      'Nah lho! {n} tutup tangan duluan!',
+      'Jago bener! {n} tutup tangan!'
+    ],
+    burn: [
+      'Waduh! {n} kebakar! Panggil pemadam kebakaran!',
+      'Yah, {n} gosong! Disalip {by}.',
+      'Aduh biyung, {n} kebakar! Sabar, ini ujian.',
+      'Kasihan deh {n}, dibakar sama {by}!',
+      'Asap di mana-mana! {n} kebakar!',
+      'Yaelah! {n} kebakar, balik ke nol lagi deh!'
+    ]
+  };
+  function line(kind, n, by) {
+    const list = LINES[kind];
+    return list[Math.floor(Math.random() * list.length)].replace('{n}', n).replace('{by}', by || 'lawan');
+  }
+
+  // Antre supaya suara yang muncul bersamaan (misal tutup tangan lalu kebakar) tidak bertabrakan:
+  // efek suara dulu, lalu suara orang menyebut nama pemain.
+  const SOUND_LEN = { burn: 750, close: 900, joker: 1300 };
+  let soundChain = Promise.resolve();
+  function playSound(kind, say) {
+    if (!soundOn || !SOUND_LEN[kind]) return;
+    soundChain = soundChain
+      .then(() => { playSoundNow(kind); return new Promise(r => setTimeout(r, SOUND_LEN[kind] - 250)); })
+      .then(() => speak(say))
+      .catch(() => {});
+  }
+
+  function playSoundNow(kind) {
+    const ctx = audio();
+    if (!ctx) return;
+    if (kind === 'burn') {
+      // 🔥 kebakar: suara api "wusss" + nada turun
+      noise(ctx, { dur: .7, vol: .35 });
+      tone(ctx, { freq: 520, to: 110, dur: .55, type: 'sawtooth', vol: .12 });
+      tone(ctx, { freq: 260, to: 70, start: .1, dur: .5, type: 'square', vol: .06 });
+      if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+    } else if (kind === 'close') {
+      // 🙌 tutup tangan: nada naik riang (do-mi-sol-do)
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(ctx, { freq: f, start: i * .1, dur: .22, type: 'triangle', vol: .22 }));
+      tone(ctx, { freq: 1046.5, start: .4, dur: .5, type: 'sine', vol: .12 });
+      if (navigator.vibrate) navigator.vibrate(120);
+    } else if (kind === 'joker') {
+      // 🃏 tutup tangan pakai joker: fanfare lebih meriah + kilau
+      [392, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(ctx, { freq: f, start: i * .09, dur: .2, type: 'square', vol: .1 }));
+      [1046.5, 1318.5, 1568].forEach(f => tone(ctx, { freq: f, start: .48, dur: .7, type: 'triangle', vol: .12 }));
+      [2093, 2637, 3136, 2637, 3520].forEach((f, i) => tone(ctx, { freq: f, start: .55 + i * .06, dur: .12, type: 'sine', vol: .06 }));
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 160]);
+    }
+  }
+
+  const soundBtn = document.getElementById('soundBtn');
+  function renderSoundBtn() {
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.classList.toggle('off', !soundOn);
+    soundBtn.title = soundOn ? 'Suara notifikasi: nyala (klik untuk matikan)' : 'Suara notifikasi: mati (klik untuk nyalakan)';
+  }
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) {}
+    renderSoundBtn();
+    if (!soundOn && speech) speech.cancel();
+    if (soundOn) playSound('close', 'Suara nyala!'); // contoh suara
+  });
+  renderSoundBtn();
+
+  // kind: (kosong) = salah isi, 'burn' = kebakar, 'close' = tutup tangan, 'joker' = tutup tangan pakai joker
+  function toast(msg, kind, sub, say) {
+    const box = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast' + (kind ? ' ' + kind : '') + (kind === 'close' || kind === 'joker' ? ' big' : '');
+    el.textContent = msg;
+    if (sub) { const sm = document.createElement('small'); sm.textContent = sub; el.appendChild(sm); }
+    box.appendChild(el);
+    playSound(kind, say);
+    while (box.children.length > 3) box.firstElementChild.remove();
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  // ---------- Satu papan skor (meja) ----------
+  const mounted = []; // papan yang sedang tampil
+
+  function mountBoard(bi) {
+    const board = app.boards[bi];
+    const color = colorOf(bi);
+    const el = document.createElement('section');
+    el.className = 'board';
+    el.style.setProperty('--b', color);
+    el.innerHTML =
+      '<div class="board-head">' +
+        '<div class="board-title"><span class="board-no">' + (bi + 1) + '</span>' +
+        '<input class="board-name" size="1" aria-label="Nama meja"></div>' +
+        '<div class="board-actions">' +
+          '<button class="add-player">+ Pemain</button>' +
+          '<button class="add-row primary">+ Baris</button>' +
+          '<button class="reset danger">Reset</button>' +
+          '<button class="invite" hidden></button>' +
+          '<button class="del danger" title="Hapus meja" aria-label="Hapus meja">🗑</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="banner" role="status" aria-live="polite"></div>' +
+      '<div class="roles"></div>' +
+      '<div class="wrap"><table><colgroup><col class="rn"></colgroup><thead><tr class="names"></tr><tr class="totals"></tr></thead><tbody></tbody></table></div>';
+
+    const nameInput = el.querySelector('.board-name');
+    const namesRow = el.querySelector('tr.names');
+    const totalsRow = el.querySelector('tr.totals');
+    const body = el.querySelector('tbody');
+    const banner = el.querySelector('.banner');
+    const rolesEl = el.querySelector('.roles');
+    const wrap = el.querySelector('.wrap');
+    let resets = [];
+    let pendingRows = [];
+    let lastResetKey = null; // null = belum pernah render, jangan munculkan pesan untuk salip lama
+    let resetToastTimer;
+
+    const playerName = i => board.players[i] || 'Pemain ' + (i + 1);
+    const cellAt = (r, c) => body.querySelector('input[data-r="' + r + '"][data-c="' + c + '"]');
+
+    nameInput.value = board.name;
+    nameInput.addEventListener('input', () => { board.name = nameInput.value; save(); renderView(); });
+
+    function render() {
+      namesRow.innerHTML = '<th class="rownum"></th>';
+      board.players.forEach((name, c) => {
+        const th = document.createElement('th');
+        th.className = 'name-cell';
+        th.innerHTML = '<span class="crown">👑</span><input class="name" size="1" aria-label="Nama pemain"><button class="remove-player" title="Hapus pemain">×</button>';
+        const inp = th.querySelector('input');
+        inp.value = name;
+        inp.addEventListener('input', () => { board.players[c] = inp.value; save(); renderTotals(); });
+        th.querySelector('button').addEventListener('click', () => {
+          if (!confirm('Hapus pemain "' + playerName(c) + '" dari ' + board.name + ' beserta semua nilainya?')) return;
+          board.players.splice(c, 1);
+          board.rows.forEach(r => r.splice(c, 1));
+          board.auto = {};
+          save(); render();
+        });
+        namesRow.appendChild(th);
+      });
+      totalsRow.innerHTML = '<th class="rownum">Total</th>' + board.players.map(() => '<th class="total"></th>').join('');
+      body.innerHTML = '';
+      board.rows.forEach((row, r) => body.appendChild(makeRow(row, r)));
+      renderTotals();
+      requestAnimationFrame(() => wrap.style.setProperty('--names-h', namesRow.offsetHeight + 'px'));
+    }
+
+    function makeRow(row, r) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="rownum">' + (r + 1) + '</td>';
+      board.players.forEach((_, c) => {
+        const td = document.createElement('td');
+        td.className = 'cell';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.inputMode = 'decimal';
+        inp.autocomplete = 'off';
+        inp.size = 1;
+        inp.placeholder = ' ';
+        inp.value = row[c] ?? '';
+        inp.dataset.r = r; inp.dataset.c = c;
+        styleInput(inp);
+        inp.addEventListener('input', () => onCellInput(inp));
+        inp.addEventListener('keydown', e => onKey(e, inp));
+        inp.addEventListener('focus', () => {
+          inp.dataset.prev = inp.value;
+          signBtn.style.background = color;
+          signBtn.classList.add('show');
+        });
+        inp.addEventListener('blur', () => { signBtn.classList.remove('show'); checkCell(inp); });
+        inp._onInput = () => onCellInput(inp); // dipakai tombol ±
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+      return tr;
+    }
+
+    function styleInput(inp) {
+      const n = score(inp.value);
+      inp.classList.toggle('invalid', isNaN(n));
+      inp.classList.toggle('neg', !isNaN(n) && n < 0);
+    }
+
+    function renderTotals() {
+      const res = computeTotals(board);
+      resets = res.resets;
+      pendingRows = res.pending;
+      const t = res.t;
+      // Total terendah = tugas mulia kocok kartu, total tertinggi = dapat kartu duluan.
+      // Tidak ditandai kalau semua total masih sama (misal awal permainan).
+      const max = Math.max(...t), min = Math.min(...t);
+      const differ = max !== min;
+      const shufflers = differ ? t.map((_, i) => i).filter(i => t[i] === min) : [];
+      const firsts = differ ? t.map((_, i) => i).filter(i => t[i] === max) : [];
+      totalsRow.querySelectorAll('.total').forEach((th, i) => {
+        th.className = 'total' + (t[i] > 0 ? ' pos' : t[i] < 0 ? ' neg' : '');
+        th.innerHTML = '<span class="num">' + fmt(t[i]) + '</span>' +
+          (firsts.includes(i) ? '<span class="role first" title="Nilai tertinggi: dapat bagian kartu duluan">⭐ Duluan</span>' : '') +
+          (shufflers.includes(i) ? '<span class="role shuffle" title="Nilai terendah: tugas mulia mengocok kartu">🔀 Kocok</span>' : '');
+      });
+      rolesEl.innerHTML = differ
+        ? '<span class="role-line shuffle">🔀 <b>Kocok kartu:</b> ' + shufflers.map(i => esc(playerName(i))).join(', ') + '</span>' +
+          '<span class="role-line first">⭐ <b>Dapat kartu duluan:</b> ' + firsts.map(i => esc(playerName(i))).join(', ') + '</span>'
+        : '';
+      renderWinner(t);
+      renderResets();
+      renderView();
+      updateInvite();
+    }
+
+    function renderWinner(t) {
+      const winners = winnersOf(t);
+      const names = namesRow.querySelectorAll('.name-cell');
+      const tots = totalsRow.querySelectorAll('.total');
+      board.players.forEach((_, i) => {
+        const win = winners.includes(i);
+        names[i]?.classList.toggle('winner', win);
+        tots[i]?.classList.toggle('winner', win);
+      });
+      if (winners.length) {
+        const who = winners.map(playerName);
+        banner.innerHTML = '🏆 ' + who.map(esc).join(' & ') + (who.length > 1 ? ' seri, sama-sama menang!' : ' MENANG!') +
+          '<small>' + esc(board.name) + ' · Total ' + fmt(Math.max(...t)) + ' (target ' + fmt(app.target) + ')</small>';
+        banner.classList.add('show');
+      } else {
+        banner.classList.remove('show');
+      }
+    }
+
+    function renderResets() {
+      body.querySelectorAll('td.cell.reset').forEach(td => { td.classList.remove('reset'); td.title = ''; });
+      // Baris yang belum lengkap: kebakar ditunda sampai semua pemain mengisi
+      [...body.rows].forEach((tr, r) => {
+        const wait = pendingRows.includes(r);
+        tr.classList.toggle('pending', wait);
+        tr.cells[0].title = wait ? 'Menunggu semua pemain mengisi (isi 0 kalau tidak dapat poin)' : '';
+      });
+      // Tandai kotak tutup tangan (250) dan tutup tangan pakai joker (300)
+      body.querySelectorAll('td.cell input').forEach(inp => {
+        const n = score(inp.value);
+        inp.parentElement.classList.toggle('tt', n === 250 || n === 300);
+        inp.parentElement.classList.toggle('joker', n === 300);
+      });
+      resets.forEach(x => {
+        const td = cellAt(x.r, x.c)?.parentElement;
+        if (!td) return;
+        td.classList.add('reset');
+        td.title = playerName(x.c) + ' (' + fmt(x.lost) + ') disalip ' + x.by.map(playerName).join(' & ') + ' → kebakar, kembali ke 0';
+      });
+      // Beri tahu kalau ada salip baru (ditunda sebentar supaya tidak muncul saat masih mengetik)
+      const key = resets.map(x => x.r + ':' + x.c).join(',');
+      clearTimeout(resetToastTimer);
+      if (lastResetKey === null) lastResetKey = key;
+      if (key !== lastResetKey) {
+        const fresh = resets.filter(x => !lastResetKey.split(',').includes(x.r + ':' + x.c));
+        lastResetKey = key;
+        if (fresh.length) resetToastTimer = setTimeout(() => {
+          // Semua yang kebakar disebut sekaligus (bisa lebih dari satu pemain)
+          const burned = fresh.map(x => playerName(x.c));
+          const burners = [...new Set(fresh.flatMap(x => x.by))].map(playerName);
+          const joinId = list => list.length > 1 ? list.slice(0, -1).join(', ') + ' dan ' + list[list.length - 1] : list[0];
+          toast('🔥 ' + burned.join(' & ') + ' KEBAKAR!', 'burn',
+            board.name + ' · ' + fresh.map(x => playerName(x.c) + ' (' + fmt(x.lost) + ') disalip ' + x.by.map(playerName).join(' & ')).join(' · ') + ' → 0',
+            line('burn', joinId(burned), joinId(burners)));
+        }, 700);
+      }
+    }
+
+    // Saat keluar dari kotak: kalau bukan kelipatan 5, kembalikan ke nilai sebelumnya
+    function checkCell(inp) {
+      if (!isNaN(score(inp.value))) return;
+      const bad = inp.value;
+      inp.value = isNaN(score(inp.dataset.prev)) ? '' : (inp.dataset.prev || '');
+      onCellInput(inp);
+      toast('"' + bad + '" ditolak — nilai harus kelipatan ' + STEP + ' (5, 10, 15, 20, ...)');
+    }
+
+    function onCellInput(inp) {
+      const r = +inp.dataset.r, c = +inp.dataset.c;
+      // Hanya boleh angka, tanda minus/plus cuma di depan
+      const clean = inp.value.replace(/−/g, '-').replace(/[^\d.,+-]/g, '').replace(/(?!^)[+-]/g, '');
+      if (clean !== inp.value) inp.value = clean;
+      board.rows[r][c] = inp.value;
+      styleInput(inp);
+      autoZero(r, c);
+      announceClose(r, c);
+      // Otomatis tambah baris baru kalau baris terakhir mulai diisi
+      if (r === board.rows.length - 1 && inp.value.trim() !== '') addRow(false);
+      save(); renderTotals();
+    }
+
+    // Notif tutup tangan: 250 = tutup tangan, 300 = tutup tangan pakai joker.
+    // Ditunda sebentar supaya tidak muncul saat masih mengetik (misal 2500 lewat 250).
+    const closeTimers = {}; // per kotak
+    function announceClose(r, c) {
+      const key = r + ':' + c;
+      clearTimeout(closeTimers[key]);
+      const n = score(board.rows[r][c]);
+      if (n !== 250 && n !== 300) return;
+      closeTimers[key] = setTimeout(() => {
+        if (score(board.rows[r][c]) !== n) return;
+        if (n === 300) toast('🃏 ' + playerName(c) + ' TUTUP TANGAN PAKAI JOKER!', 'joker', board.name + ' · +300 poin, pemain lain 0',
+          line('joker', playerName(c)));
+        else toast('🙌 ' + playerName(c) + ' TUTUP TANGAN!', 'close', board.name + ' · +250 poin, pemain lain 0',
+          line('close', playerName(c)));
+      }, 500);
+    }
+
+    function setCell(r, c, v) {
+      board.rows[r][c] = v;
+      const el = cellAt(r, c);
+      if (el) { el.value = v; styleInput(el); }
+    }
+
+    // Isi 250 atau 300 → kotak kosong pemain lain di baris itu otomatis 0.
+    // Kalau angkanya diganti lagi, angka 0 otomatis tadi dihapus (selama belum diubah).
+    function autoZero(r, c) {
+      const rec = board.auto[r];
+      const isTrigger = AUTO_ZERO.includes(parse(board.rows[r][c]));
+      if (rec && rec.by === c && !isTrigger) {
+        rec.cols.forEach(k => { if (board.rows[r][k] === '0') setCell(r, k, ''); });
+        delete board.auto[r];
+      }
+      if (isTrigger && !board.auto[r]) {
+        const cols = [];
+        board.players.forEach((_, k) => {
+          if (k !== c && String(board.rows[r][k] ?? '').trim() === '') { setCell(r, k, '0'); cols.push(k); }
+        });
+        if (cols.length) board.auto[r] = { by: c, cols };
+      }
+    }
+
+    function focusCell(r, c) {
+      const el = cellAt(r, c);
+      if (el) { el.focus(); el.select(); }
+    }
+
+    function onKey(e, inp) {
+      const r = +inp.dataset.r, c = +inp.dataset.c;
+      if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); focusCell(r + 1, c); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focusCell(r - 1, c); }
+    }
+
+    function addRow(focus) {
+      board.rows.push(board.players.map(() => ''));
+      const r = board.rows.length - 1;
+      body.appendChild(makeRow(board.rows[r], r));
+      save();
+      if (focus) focusCell(r, 0);
+    }
+
+    el.querySelector('.add-row').addEventListener('click', () => addRow(true));
+    el.querySelector('.add-player').addEventListener('click', () => {
+      board.players.push('Pemain ' + (board.players.length + 1));
+      board.rows.forEach(r => r.push(''));
+      save(); render();
+      const names = namesRow.querySelectorAll('.name');
+      const last = names[names.length - 1];
+      last.focus(); last.select();
+    });
+    el.querySelector('.reset').addEventListener('click', () => {
+      if (!confirm('Hapus semua nilai di "' + board.name + '"? Nama pemain tetap disimpan.')) return;
+      board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
+      board.auto = {};
+      save(); render();
+    });
+    const inviteBtn = el.querySelector('.invite');
+    function updateInvite() {
+      const k = shortOf(board);
+      inviteBtn.hidden = k === 0;
+      inviteBtn.textContent = '📨 Kurang ' + k + ' · Undang';
+      inviteBtn.title = 'Meja ini masih kurang ' + k + ' pemain — kirim link undangan';
+    }
+    inviteBtn.addEventListener('click', () => openInvite(board));
+
+    el.querySelector('.del').addEventListener('click', () => {
+      if (!confirm('Hapus "' + board.name + '" beserta semua skornya?')) return;
+      app.boards.splice(bi, 1);
+      view = 'all';
+      save(); saveView(); renderAll();
+    });
+
+    render();
+    return { el, renderTotals };
+  }
+
+  // ---------- Semua meja + pilihan tampilan ----------
+  function renderAll() {
+    if (view !== 'all' && !(+view >= 0 && +view < app.boards.length)) view = 'all';
+    boardsEl.innerHTML = '';
+    mounted.length = 0;
+    app.boards.forEach((_, i) => {
+      if (view !== 'all' && +view !== i) return;
+      const m = mountBoard(i);
+      mounted.push(m);
+      boardsEl.appendChild(m.el);
+    });
+    boardsEl.classList.toggle('single', app.boards.length === 1);
+    renderView();
+    const active = viewEl.querySelector('.chip.active');
+    if (active) viewEl.scrollLeft = active.offsetLeft - viewEl.clientWidth / 2 + active.offsetWidth / 2;
+  }
+
+  function renderView() {
+    viewEl.hidden = app.boards.length < 2;
+    viewEl.innerHTML = '<span class="lbl">Tampilkan:</span>';
+    const chip = (label, value, color, won, short) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip' + (color ? '' : ' all') + (String(view) === String(value) ? ' active' : '');
+      if (color) b.style.setProperty('--b', color);
+      b.innerHTML = (color ? '<span class="dot"></span>' : '') + (won ? '🏆 ' : '') + esc(label) +
+        (short ? ' <span class="short" title="Kurang ' + short + ' pemain">−' + short + '</span>' : '');
+      b.addEventListener('click', () => { view = String(value); saveView(); renderAll(); window.scrollTo({ top: 0 }); });
+      viewEl.appendChild(b);
+    };
+    chip('Semua meja', 'all');
+    app.boards.forEach((b, i) =>
+      chip(b.name || 'Meja ' + (i + 1), i, colorOf(i), winnersOf(computeTotals(b).t).length > 0, shortOf(b)));
+  }
+
+  document.getElementById('addBoard').addEventListener('click', () => {
+    // Nomor pemain lanjut dari meja sebelumnya: Meja 2 → Pemain 5–8, Meja 3 → Pemain 9–12
+    const used = app.boards.reduce((n, b) => n + b.players.length, 0);
+    const players = [1, 2, 3, 4].map(k => 'Pemain ' + (used + k));
+    app.boards.push(newBoard('Meja ' + (app.boards.length + 1), players));
+    save();
+    if (view !== 'all') view = String(app.boards.length - 1);
+    saveView(); renderAll();
+    boardsEl.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // Tombol ± : membalik tanda angka di kotak yang sedang aktif tanpa menutup keyboard
+  signBtn.addEventListener('pointerdown', e => e.preventDefault());
+  signBtn.addEventListener('click', () => {
+    const inp = document.activeElement;
+    if (!inp || !inp._onInput) return;
+    const v = inp.value.trim().replace(/−/g, '-');
+    inp.value = v.startsWith('-') ? v.slice(1) : v.startsWith('+') ? '-' + v.slice(1) : '-' + v;
+    inp._onInput();
+  });
+
+  targetInput.value = app.target;
+  document.getElementById('targetHint').textContent = fmt(app.target);
+  targetInput.addEventListener('input', () => {
+    const n = parse(targetInput.value);
+    if (!isNaN(n) && n > 0) {
+      app.target = n;
+      document.getElementById('targetHint').textContent = fmt(n);
+      save(); mounted.forEach(m => m.renderTotals());
+    }
+  });
+
+  // ---------- Undangan pemain ----------
+  // Satu meja idealnya 4 pemain. Kursi dianggap kosong kalau namanya kosong atau masih "Pemain N".
+  const SEATS = 4;
+  const isEmptySeat = name => !String(name || '').trim() || /^pemain \d+$/i.test(String(name).trim());
+  function shortOf(board) {
+    return board.players.filter(isEmptySeat).length + Math.max(0, SEATS - board.players.length);
+  }
+
+  const shareDlg = document.getElementById('shareDlg');
+  let shareMsg = '', shareUrl = '';
+  function openInvite(board) {
+    const k = shortOf(board);
+    const who = board.players.filter(n => !isEmptySeat(n));
+    const u = new URL(location.href.split('?')[0].split('#')[0]);
+    u.searchParams.set('undang', board.name || 'Meja');
+    u.searchParams.set('kurang', k);
+    if (who.length) u.searchParams.set('pemain', who.join(', '));
+    shareUrl = u.toString();
+    shareMsg = '🃏 Main remi yuk!\n' +
+      (board.name || 'Meja') + ' masih kurang ' + k + ' orang' + (k > 1 ? ' lagi' : '') + '.\n' +
+      (who.length ? 'Sudah ada: ' + who.join(', ') + '.\n' : '') +
+      'Gabung di sini 👉 ' + shareUrl;
+    document.getElementById('shareText').textContent = shareMsg;
+    document.getElementById('shareNative').hidden = !navigator.share;
+    shareDlg.showModal ? shareDlg.showModal() : shareDlg.setAttribute('open', '');
+  }
+  const closeShare = () => (shareDlg.close ? shareDlg.close() : shareDlg.removeAttribute('open'));
+  document.getElementById('shareClose').addEventListener('click', closeShare);
+  document.getElementById('shareWa').addEventListener('click', () => {
+    window.open('https://wa.me/?text=' + encodeURIComponent(shareMsg), '_blank', 'noopener');
+    closeShare();
+  });
+  document.getElementById('shareNative').addEventListener('click', async () => {
+    try { await navigator.share({ title: 'Undangan main remi', text: shareMsg }); closeShare(); } catch (e) {}
+  });
+  document.getElementById('shareCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(shareMsg); toast('✅ Pesan undangan disalin, tinggal tempel di grup', 'info'); closeShare(); }
+    catch (e) { toast('Gagal menyalin, coba tekan lama teksnya lalu salin'); }
+  });
+
+  // Kalau halaman dibuka dari link undangan, tampilkan kartu undangan di atas
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('undang')) {
+    const k = parseInt(qs.get('kurang'), 10) || 0;
+    const who = qs.get('pemain');
+    document.getElementById('inviteTitle').textContent = 'Kamu diundang main remi di ' + qs.get('undang') + '!';
+    document.getElementById('inviteText').textContent =
+      (k ? 'Masih kurang ' + k + ' orang. ' : '') + (who ? 'Sudah ada: ' + who + '. ' : '') + 'Langsung merapat ya! 🙌';
+    document.getElementById('inviteCard').hidden = false;
+  }
+  document.getElementById('inviteClose').addEventListener('click', () => {
+    document.getElementById('inviteCard').hidden = true;
+    history.replaceState(null, '', location.pathname);
+  });
+
+  save();
+  renderAll();
+})();
+</script>
+</body>
+</html>
