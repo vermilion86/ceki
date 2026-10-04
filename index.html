@@ -50,6 +50,11 @@
   }
   h1 { font-size: 21px; margin: 0; line-height: 1.1; letter-spacing: -.2px; }
   .brand small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  .net { font-weight: 700; }
+  .net::before { content: '●'; margin-right: 3px; color: #9aa3b2; }
+  .net.on { color: #15803d; } .net.on::before { color: #22c55e; }
+  .net.off { color: #b45309; } .net.off::before { color: #f59e0b; }
+  .boards .empty { text-align: center; color: var(--muted); padding: 30px 10px; background: var(--surface); border-radius: 16px; border: 1px dashed var(--line); }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
   button {
@@ -224,6 +229,8 @@
   .board-actions .invite { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
   .board-actions .invite:hover { background: #ffedd5; }
   .board-actions .invite[hidden] { display: none; }
+  th.name-cell.empty-seat .name { color: #c2410c; font-style: italic; }
+  th.name-cell.empty-seat { background: repeating-linear-gradient(135deg, #fff7ed 0 8px, #ffedd5 8px 16px) !important; }
   .chip .short { font-size: 11px; font-weight: 800; color: #c2410c; }
   .chip.active .short { color: #fff; }
   .invite-card {
@@ -401,7 +408,7 @@
 </head>
 <body>
   <header>
-    <div class="brand"><div class="logo" aria-hidden="true">♠</div><div><h1>Lapak Ceki Pos Sukun</h1><small>Lapak Ceki</small></div></div>
+    <div class="brand"><div class="logo" aria-hidden="true">♠</div><div><h1>Lapak Ceki Pos Sukun</h1><small>Lapak Ceki · <span id="net" class="net">menyambung…</span></small></div></div>
     <div class="actions">
       <label class="target">Target <input id="target" type="text" inputmode="numeric" size="1"></label>
       <button id="soundBtn" class="icon" type="button" title="Suara notifikasi" aria-label="Suara notifikasi">🔊</button>
@@ -497,11 +504,14 @@
   const STEP = 5;                 // nilai harus kelipatan 5
   const SAFE_LIMIT = 100;         // total di atas ini bisa kembali ke 0 kalau disalip
 
+  const newId = () => Math.random().toString(36).slice(2, 10);
   const newBoard = (name, players) => ({
-    name, players, auto: {},
+    id: newId(), order: Date.now(), name, players, auto: {},
     rows: Array.from({ length: 10 }, () => players.map(() => ''))
   });
 
+  // Data di HP ini hanya cadangan (tampil cepat & tetap jalan saat offline).
+  // Data utama ada di database online, jadi semua yang membuka website melihat skor yang sama.
   let app = null;
   try { app = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   if (!app || !Array.isArray(app.boards) || !app.boards.length) {
@@ -515,12 +525,16 @@
   }
   app.boards.forEach(b => {
     if (!b.auto) b.auto = {};
+    if (!b.id) b.id = newId();
     b.name = String(b.name || '').replace(/^Meja(\s+\d+)$/i, 'Lapak$1'); // nama lama "Meja 1" → "Lapak 1"
   });
   delete app.current;
+  app.boards.forEach((b, i) => { if (b.order == null) b.order = i; });
 
+  // view = 'all' atau id lapak yang ditampilkan di HP ini
   let view = 'all';
   try { view = localStorage.getItem(VIEW_KEY) || 'all'; } catch (e) {}
+  if (/^\d+$/.test(view)) view = app.boards[+view]?.id || 'all'; // versi lama menyimpan nomor urut
 
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(app)); } catch (e) {} };
   const saveView = () => { try { localStorage.setItem(VIEW_KEY, view); } catch (e) {} };
@@ -801,8 +815,9 @@
     const playerName = i => board.players[i] || 'Pemain ' + (i + 1);
     const cellAt = (r, c) => body.querySelector('input[data-r="' + r + '"][data-c="' + c + '"]');
 
+    const bpath = sub => 'boards/' + board.id + (sub ? '/' + sub : '');
     nameInput.value = board.name;
-    nameInput.addEventListener('input', () => { board.name = nameInput.value; save(); renderView(); });
+    nameInput.addEventListener('input', () => { board.name = nameInput.value; write(bpath('name'), board.name); save(); renderView(); });
 
     function render() {
       namesRow.innerHTML = '<th class="rownum"></th>';
@@ -812,12 +827,19 @@
         th.innerHTML = '<span class="crown">👑</span><input class="name" size="1" aria-label="Nama pemain"><button class="remove-player" title="Hapus pemain">×</button>';
         const inp = th.querySelector('input');
         inp.value = name;
-        inp.addEventListener('input', () => { board.players[c] = inp.value; save(); renderTotals(); });
+        th.classList.toggle('empty-seat', isEmptySeat(name));
+        inp.addEventListener('input', () => {
+          board.players[c] = inp.value;
+          th.classList.toggle('empty-seat', isEmptySeat(inp.value));
+          write(bpath('players/' + c), inp.value);
+          save(); renderTotals();
+        });
         th.querySelector('button').addEventListener('click', () => {
           if (!confirm('Hapus pemain "' + playerName(c) + '" dari ' + board.name + ' beserta semua nilainya?')) return;
           board.players.splice(c, 1);
           board.rows.forEach(r => r.splice(c, 1));
           board.auto = {};
+          write(bpath(), boardToRemote(board));
           save(); render();
         });
         namesRow.appendChild(th);
@@ -851,7 +873,13 @@
           signBtn.style.background = color;
           signBtn.classList.add('show');
         });
-        inp.addEventListener('blur', () => { signBtn.classList.remove('show'); checkCell(inp); });
+        inp.addEventListener('blur', () => {
+          signBtn.classList.remove('show');
+          checkCell(inp);
+          // Kalau tidak diubah tapi sementara itu ada perubahan dari HP lain, tampilkan yang terbaru
+          const v = board.rows[r]?.[c] ?? '';
+          if (inp.value === inp.dataset.prev && inp.value !== v) { inp.value = v; styleInput(inp); }
+        });
         inp._onInput = () => onCellInput(inp); // dipakai tombol ±
         td.appendChild(inp);
         tr.appendChild(td);
@@ -965,6 +993,7 @@
       const clean = inp.value.replace(/−/g, '-').replace(/[^\d.,+-]/g, '').replace(/(?!^)[+-]/g, '');
       if (clean !== inp.value) inp.value = clean;
       board.rows[r][c] = inp.value;
+      write(bpath('rows/' + r + '/' + c), inp.value);
       styleInput(inp);
       autoZero(r, c);
       announceClose(r, c);
@@ -992,6 +1021,7 @@
 
     function setCell(r, c, v) {
       board.rows[r][c] = v;
+      write(bpath('rows/' + r + '/' + c), v);
       const el = cellAt(r, c);
       if (el) { el.value = v; styleInput(el); }
     }
@@ -1004,13 +1034,14 @@
       if (rec && rec.by === c && !isTrigger) {
         rec.cols.forEach(k => { if (board.rows[r][k] === '0') setCell(r, k, ''); });
         delete board.auto[r];
+        write(bpath('auto/' + r), null);
       }
       if (isTrigger && !board.auto[r]) {
         const cols = [];
         board.players.forEach((_, k) => {
           if (k !== c && String(board.rows[r][k] ?? '').trim() === '') { setCell(r, k, '0'); cols.push(k); }
         });
-        if (cols.length) board.auto[r] = { by: c, cols };
+        if (cols.length) { board.auto[r] = { by: c, cols }; write(bpath('auto/' + r), board.auto[r]); }
       }
     }
 
@@ -1029,6 +1060,7 @@
       board.rows.push(board.players.map(() => ''));
       const r = board.rows.length - 1;
       body.appendChild(makeRow(board.rows[r], r));
+      write(bpath('rows/' + r), board.rows[r]);
       save();
       if (focus) focusCell(r, 0);
     }
@@ -1037,6 +1069,7 @@
     el.querySelector('.add-player').addEventListener('click', () => {
       board.players.push('Pemain ' + (board.players.length + 1));
       board.rows.forEach(r => r.push(''));
+      write(bpath(), boardToRemote(board));
       save(); render();
       const names = namesRow.querySelectorAll('.name');
       const last = names[names.length - 1];
@@ -1046,6 +1079,7 @@
       if (!confirm('Hapus semua nilai di "' + board.name + '"? Nama pemain tetap disimpan.')) return;
       board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
       board.auto = {};
+      write(bpath(), boardToRemote(board));
       save(); render();
     });
     const inviteBtn = el.querySelector('.invite');
@@ -1059,22 +1093,48 @@
 
     el.querySelector('.del').addEventListener('click', () => {
       if (!confirm('Hapus "' + board.name + '" beserta semua skornya?')) return;
-      app.boards.splice(bi, 1);
+      app.boards = app.boards.filter(b => b !== board);
+      write(bpath(), null);
       view = 'all';
       save(); saveView(); renderAll();
     });
 
+    // Perbarui tampilan dari data terbaru (perubahan dari HP lain) tanpa mengganggu kotak yang sedang diketik
+    function sync() {
+      if (board.players.length !== namesRow.querySelectorAll('.name-cell').length || board.rows.length < body.rows.length) { render(); return; }
+      if (document.activeElement !== nameInput && nameInput.value !== board.name) nameInput.value = board.name;
+      namesRow.querySelectorAll('.name-cell').forEach((th, c) => {
+        const inp = th.querySelector('.name');
+        if (inp === document.activeElement || inp.value === board.players[c]) return;
+        inp.value = board.players[c];
+        th.classList.toggle('empty-seat', isEmptySeat(inp.value));
+      });
+      while (body.rows.length < board.rows.length) body.appendChild(makeRow(board.rows[body.rows.length], body.rows.length));
+      body.querySelectorAll('td.cell input').forEach(inp => {
+        const r = +inp.dataset.r, c = +inp.dataset.c, v = board.rows[r]?.[c] ?? '';
+        if (inp === document.activeElement || inp.value === v) return;
+        const was = score(inp.value);
+        inp.value = v;
+        styleInput(inp);
+        const n = score(v);
+        if ((n === 250 || n === 300) && n !== was) announceClose(r, c); // tutup tangan dari HP lain juga diumumkan
+      });
+      renderTotals();
+    }
+
     render();
-    return { el, renderTotals };
+    return { el, renderTotals, sync, id: board.id };
   }
 
   // ---------- Semua lapak + pilihan tampilan ----------
+  // Lapak yang ditampilkan: kalau lapak pilihan tidak ada (belum termuat/dihapus), tampilkan semua
+  const shownView = () => (view !== 'all' && app.boards.some(b => b.id === view) ? view : 'all');
   function renderAll() {
-    if (view !== 'all' && !(+view >= 0 && +view < app.boards.length)) view = 'all';
-    boardsEl.innerHTML = '';
+    const v = shownView();
+    boardsEl.innerHTML = app.boards.length ? '' : '<p class="empty">Belum ada lapak. Klik <b>+ Lapak</b> untuk mulai.</p>';
     mounted.length = 0;
-    app.boards.forEach((_, i) => {
-      if (view !== 'all' && +view !== i) return;
+    app.boards.forEach((b, i) => {
+      if (v !== 'all' && b.id !== v) return;
       const m = mountBoard(i);
       mounted.push(m);
       boardsEl.appendChild(m.el);
@@ -1091,7 +1151,7 @@
     const chip = (label, value, color, won, short) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip' + (color ? '' : ' all') + (String(view) === String(value) ? ' active' : '');
+      b.className = 'chip' + (color ? '' : ' all') + (shownView() === String(value) ? ' active' : '');
       if (color) b.style.setProperty('--b', color);
       b.innerHTML = (color ? '<span class="dot"></span>' : '') + (won ? '🏆 ' : '') + esc(label) +
         (short ? ' <span class="short" title="Kurang ' + short + ' pemain">−' + short + '</span>' : '');
@@ -1100,16 +1160,18 @@
     };
     chip('Semua lapak', 'all');
     app.boards.forEach((b, i) =>
-      chip(b.name || 'Lapak ' + (i + 1), i, colorOf(i), winnersOf(computeTotals(b).t).length > 0, shortOf(b)));
+      chip(b.name || 'Lapak ' + (i + 1), b.id, colorOf(i), winnersOf(computeTotals(b).t).length > 0, shortOf(b)));
   }
 
   document.getElementById('addBoard').addEventListener('click', () => {
     // Nomor pemain lanjut dari lapak sebelumnya: Lapak 2 → Pemain 5–8, Lapak 3 → Pemain 9–12
     const used = app.boards.reduce((n, b) => n + b.players.length, 0);
     const players = [1, 2, 3, 4].map(k => 'Pemain ' + (used + k));
-    app.boards.push(newBoard('Lapak ' + (app.boards.length + 1), players));
+    const nb = newBoard('Lapak ' + (app.boards.length + 1), players);
+    app.boards.push(nb);
+    write('boards/' + nb.id, boardToRemote(nb));
     save();
-    if (view !== 'all') view = String(app.boards.length - 1);
+    if (view !== 'all') view = nb.id;
     saveView(); renderAll();
     boardsEl.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -1131,6 +1193,7 @@
     if (!isNaN(n) && n > 0) {
       app.target = n;
       document.getElementById('targetHint').textContent = fmt(n);
+      write('target', n);
       save(); mounted.forEach(m => m.renderTotals());
     }
   });
@@ -1143,17 +1206,28 @@
     return board.players.filter(isEmptySeat).length + Math.max(0, SEATS - board.players.length);
   }
 
+  // JSON ↔ teks aman untuk URL (base64url, mendukung huruf/emoji)
+  function encodeData(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = '';
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function decodeData(str) {
+    const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, ch => ch.charCodeAt(0))));
+  }
+
   const shareDlg = document.getElementById('shareDlg');
   let shareMsg = '', shareUrl = '';
   function openInvite(board) {
     const k = shortOf(board);
     const who = board.players.filter(n => !isEmptySeat(n));
+    // Skor sudah tersimpan online, jadi link cukup berisi id lapak
     const u = new URL(location.href.split('?')[0].split('#')[0]);
-    u.searchParams.set('undang', board.name || 'Lapak');
-    u.searchParams.set('kurang', k);
-    if (who.length) u.searchParams.set('pemain', who.join(', '));
+    u.searchParams.set('lihat', board.id);
     shareUrl = u.toString();
-    shareMsg = '🃏 Main remi yuk!\n' +
+    shareMsg = '🃏 Main ceki yuk!\n' +
       (board.name || 'Lapak') + ' masih kurang ' + k + ' orang' + (k > 1 ? ' lagi' : '') + '.\n' +
       (who.length ? 'Sudah ada: ' + who.join(', ') + '.\n' : '') +
       'Gabung di sini 👉 ' + shareUrl;
@@ -1168,30 +1242,250 @@
     closeShare();
   });
   document.getElementById('shareNative').addEventListener('click', async () => {
-    try { await navigator.share({ title: 'Undangan main remi', text: shareMsg }); closeShare(); } catch (e) {}
+    try { await navigator.share({ title: 'Undangan main ceki', text: shareMsg }); closeShare(); } catch (e) {}
   });
   document.getElementById('shareCopy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(shareMsg); toast('✅ Pesan undangan disalin, tinggal tempel di grup', 'info'); closeShare(); }
     catch (e) { toast('Gagal menyalin, coba tekan lama teksnya lalu salin'); }
   });
 
-  // Kalau halaman dibuka dari link undangan, tampilkan kartu undangan di atas
+  // Kalau halaman dibuka dari link undangan: masukkan lapak dari link ke HP ini lalu tampilkan
   const qs = new URLSearchParams(location.search);
-  if (qs.has('undang')) {
-    const k = parseInt(qs.get('kurang'), 10) || 0;
-    const who = qs.get('pemain');
-    document.getElementById('inviteTitle').textContent = 'Kamu diundang main remi di ' + qs.get('undang') + '!';
+  function showInviteCard(name, k, who) {
+    document.getElementById('inviteTitle').textContent = 'Kamu diundang main ceki di ' + name + '!';
     document.getElementById('inviteText').textContent =
-      (k ? 'Masih kurang ' + k + ' orang. ' : '') + (who ? 'Sudah ada: ' + who + '. ' : '') + 'Langsung merapat ya! 🙌';
+      (k ? 'Masih kurang ' + k + ' orang. ' : '') + (who.length ? 'Sudah ada: ' + who.join(', ') + '. ' : '') +
+      (k ? 'Ketik namamu di kursi kosong (tulisan oranye) ya! 🙌' : 'Langsung merapat ya! 🙌');
     document.getElementById('inviteCard').hidden = false;
   }
+  let inviteId = null;     // lapak yang dibuka dari link undangan
+  let importBoard = null;  // link undangan versi lama yang membawa data lapak
+  if (qs.has('lihat')) {
+    inviteId = qs.get('lihat');
+  } else if (qs.has('lapak')) {
+    try {
+      const d = decodeData(qs.get('lapak'));
+      const players = Array.isArray(d.players) && d.players.length ? d.players.map(String) : ['', '', '', ''];
+      const rows = (Array.isArray(d.rows) ? d.rows : []).map(r => players.map((_, c) => String(r[c] ?? '')));
+      while (rows.length < 10) rows.push(players.map(() => ''));
+      importBoard = { id: d.id || newId(), order: Date.now(), name: d.name || 'Lapak', players, rows, auto: d.auto || {} };
+      inviteId = importBoard.id;
+    } catch (e) {
+      toast('Link undangan tidak bisa dibaca, coba minta link baru');
+    }
+  } else if (qs.has('undang')) {
+    // Link undangan versi lama (hanya teks)
+    showInviteCard(qs.get('undang'), parseInt(qs.get('kurang'), 10) || 0, (qs.get('pemain') || '').split(',').map(x => x.trim()).filter(Boolean));
+  }
+  if (inviteId) { view = inviteId; saveView(); }
+  if (qs.has('lihat') || qs.has('lapak')) history.replaceState(null, '', location.pathname);
+
+  // Dipanggil sekali setelah data online pertama kali termuat
+  function handleInviteAfterLoad() {
+    if (!inviteId) return;
+    let b = app.boards.find(x => x.id === inviteId);
+    if (!b && importBoard) {
+      app.boards.push(importBoard);
+      write('boards/' + importBoard.id, boardToRemote(importBoard));
+      b = importBoard;
+    }
+    if (!b) { toast('Lapak dari link undangan tidak ditemukan (mungkin sudah dihapus)'); view = 'all'; saveView(); return; }
+    showInviteCard(b.name, shortOf(b), b.players.filter(n => !isEmptySeat(n)));
+  }
+
   document.getElementById('inviteClose').addEventListener('click', () => {
     document.getElementById('inviteCard').hidden = true;
     history.replaceState(null, '', location.pathname);
   });
 
+  // ---------- Sinkron online: Firebase Realtime Database lewat REST + streaming ----------
+  // Struktur data: /lapakceki = { target, boards: { <id>: { name, order, players, rows, auto } } }
+  const DB_URL = 'https://pos-sukun-default-rtdb.asia-southeast1.firebasedatabase.app';
+  const DB_ROOT = 'lapakceki';
+  const devDb = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && qs.get('db'); // hanya untuk uji lokal
+  const dbBase = devDb || DB_URL;
+  const dbUrl = () => dbBase + '/' + DB_ROOT + '.json';
+
+  function boardToRemote(b) {
+    return { name: b.name || '', order: b.order || 0, players: b.players, rows: b.rows, auto: b.auto || {} };
+  }
+  const clone = v => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
+  const splitPath = path => String(path).split('/').filter(Boolean);
+  function setPath(root, path, val) {
+    const parts = splitPath(path);
+    if (!parts.length) return val;
+    if (root === null || typeof root !== 'object') root = {};
+    let o = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (o[parts[i]] === null || typeof o[parts[i]] !== 'object') o[parts[i]] = {};
+      o = o[parts[i]];
+    }
+    const k = parts[parts.length - 1];
+    if (val === null || val === undefined) delete o[k]; else o[k] = val;
+    return root;
+  }
+  const getPath = (root, path) => splitPath(path).reduce((o, k) => (o == null ? undefined : o[k]), root);
+  const isUnder = (p, anc) => anc === '' || p === anc || p.startsWith(anc + '/');
+  // Firebase bisa mengembalikan array sebagai objek {"0":..,"1":..}
+  function toArr(x) {
+    if (Array.isArray(x)) return Array.from(x, v => (v === undefined ? null : v));
+    if (x && typeof x === 'object') {
+      const out = [];
+      Object.keys(x).forEach(k => { if (/^\d+$/.test(k)) out[+k] = x[k]; });
+      return Array.from(out, v => (v === undefined ? null : v));
+    }
+    return [];
+  }
+  function toObj(x) {
+    if (Array.isArray(x)) { const o = {}; x.forEach((v, i) => { if (v != null) o[i] = v; }); return o; }
+    return x && typeof x === 'object' ? x : {};
+  }
+
+  let remote;              // data dari server (undefined = belum termuat)
+  let loaded = false;
+  const pending = {};      // path -> { value, at }: tulisan HP ini yang belum dikonfirmasi server
+  const outbox = {};       // path -> value: belum terkirim
+  let sending = false;
+
+  const netEl = document.getElementById('net');
+  function setNet(state, text) {
+    netEl.className = 'net ' + (state === true ? 'on' : state === false ? 'off' : '');
+    netEl.textContent = text || (state === true ? 'Online' : 'Offline');
+    netEl.title = state === true ? 'Skor tersambung, semua HP melihat data yang sama'
+      : 'Tidak tersambung. Skor tetap tersimpan di HP ini dan dikirim otomatis saat online lagi.';
+  }
+
+  // Kirim perubahan ke database (digabung, satu per satu supaya urutannya terjaga)
+  function write(path, value) {
+    value = clone(value);
+    Object.keys(pending).forEach(p => { if (isUnder(p, path)) delete pending[p]; });
+    pending[path] = { value, at: Date.now() };
+    enqueue(path, value, true);
+    flush();
+  }
+  function enqueue(path, value, newer) {
+    const anc = Object.keys(outbox).find(p => p !== path && isUnder(path, p));
+    if (anc) { // sudah ada tulisan di induknya → gabungkan ke situ
+      if (newer) outbox[anc] = setPath(outbox[anc], path.slice(anc.length + 1), value);
+      return;
+    }
+    if (!newer && path in outbox) return;
+    Object.keys(outbox).forEach(p => {
+      if (p !== path && isUnder(p, path)) { // anak dari path ini
+        if (!newer) value = setPath(value, p.slice(path.length + 1), outbox[p]);
+        delete outbox[p];
+      }
+    });
+    outbox[path] = value;
+  }
+  let lastWriteError = 0;
+  async function flush() {
+    if (sending || !Object.keys(outbox).length) return;
+    sending = true;
+    const batch = {};
+    Object.keys(outbox).forEach(p => { batch[p] = outbox[p]; delete outbox[p]; });
+    try {
+      const res = await fetch(dbUrl(), { method: 'PATCH', body: JSON.stringify(batch) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const doneAt = Date.now();
+      setTimeout(() => Object.keys(batch).forEach(p => { if (pending[p] && pending[p].at <= doneAt) delete pending[p]; }), 5000);
+      sending = false;
+      flush();
+    } catch (e) {
+      Object.keys(batch).forEach(p => enqueue(p, batch[p], false)); // coba lagi nanti
+      sending = false;
+      setNet(false, /HTTP 40[13]/.test(e.message) ? 'Ditolak (cek Rules)' : 'Offline');
+      if (Date.now() - lastWriteError > 60000) { lastWriteError = Date.now(); toast('Skor belum terkirim ke online, akan dicoba lagi otomatis', 'info'); }
+      setTimeout(flush, 3000);
+    }
+  }
+
+  // Terima perubahan dari server
+  function confirmPending(path, data) {
+    Object.keys(pending).forEach(p => {
+      if (!isUnder(p, path)) return;
+      const got = p === path ? data : getPath(data, p.slice(path ? path.length + 1 : 0));
+      if (JSON.stringify(got ?? null) === JSON.stringify(pending[p].value ?? null)) delete pending[p];
+    });
+  }
+  function onRemote(path, data, isPatch) {
+    path = splitPath(path).join('/');
+    if (isPatch) {
+      Object.keys(data || {}).forEach(k => {
+        const full = splitPath(path + '/' + k).join('/');
+        remote = setPath(remote ?? {}, full, clone(data[k]));
+        confirmPending(full, data[k]);
+      });
+    } else {
+      remote = path ? setPath(remote ?? {}, path, clone(data)) : clone(data);
+      confirmPending(path, data);
+    }
+    scheduleApply();
+  }
+  let applyQueued = false;
+  function scheduleApply() {
+    if (applyQueued) return;
+    applyQueued = true;
+    setTimeout(() => { applyQueued = false; applyRemote(); }, 30);
+  }
+
+  function applyRemote() {
+    if (remote === undefined) return;
+    if (!loaded) {
+      loaded = true;
+      if (!remote || !remote.boards) {
+        // Database masih kosong: isi dengan lapak yang ada di HP ini
+        write('target', app.target);
+        app.boards.forEach(b => write('boards/' + b.id, boardToRemote(b)));
+      }
+    }
+    // Data server + tulisan HP ini yang belum dikonfirmasi
+    let data = clone(remote) || {};
+    Object.keys(pending).forEach(p => { data = setPath(data, p, clone(pending[p].value)); });
+    const rb = data && typeof data === 'object' ? toObj(data.boards) : {};
+    const oldIds = app.boards.map(b => b.id).join(',');
+    app.boards = Object.keys(rb)
+      .filter(id => rb[id] && typeof rb[id] === 'object')
+      .sort((a, b) => (rb[a].order || 0) - (rb[b].order || 0) || a.localeCompare(b))
+      .map(id => {
+        const raw = rb[id];
+        const b = app.boards.find(x => x.id === id) || { id };
+        const players = toArr(raw.players).map(v => String(v ?? ''));
+        const rows = toArr(raw.rows).map(r => { const a = toArr(r); return players.map((_, c) => String(a[c] ?? '')); });
+        while (rows.length < 1) rows.push(players.map(() => ''));
+        Object.assign(b, { name: String(raw.name ?? ''), order: raw.order || 0, players, rows, auto: toObj(raw.auto) });
+        return b;
+      });
+    if (Number(data.target) > 0 && Number(data.target) !== app.target) {
+      app.target = Number(data.target);
+      if (document.activeElement !== targetInput) targetInput.value = app.target;
+      document.getElementById('targetHint').textContent = fmt(app.target);
+    }
+    save();
+    if (!applyRemote.done) { applyRemote.done = true; handleInviteAfterLoad(); }
+    const ids = app.boards.map(b => b.id).join(',');
+    const shownIds = mounted.map(m => m.id).join(',');
+    const wantIds = app.boards.filter(b => shownView() === 'all' || b.id === shownView()).map(b => b.id).join(',');
+    if (ids !== oldIds || shownIds !== wantIds) renderAll();
+    else mounted.forEach(m => m.sync());
+  }
+
+  function connect() {
+    setNet(null, 'menyambung…');
+    let es;
+    try { es = new EventSource(dbUrl()); } catch (e) { setNet(false); return; }
+    es.addEventListener('put', e => { setNet(true); const m = JSON.parse(e.data); onRemote(m.path, m.data, false); });
+    es.addEventListener('patch', e => { setNet(true); const m = JSON.parse(e.data); onRemote(m.path, m.data, true); });
+    es.addEventListener('keep-alive', () => setNet(true));
+    es.addEventListener('cancel', () => setNet(false, 'Ditolak (cek Rules)'));
+    es.onopen = () => setNet(true);
+    es.onerror = () => { if (netEl.textContent !== 'Ditolak (cek Rules)') setNet(false); };
+  }
+
   save();
-  renderAll();
+  renderAll();   // tampilkan dulu data cadangan di HP ini
+  connect();     // lalu sambungkan ke database online
+  window.addEventListener('online', flush);
 })();
 </script>
 </body>
