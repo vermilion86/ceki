@@ -230,6 +230,7 @@
   .board-actions .invite:hover { background: #ffedd5; }
   .board-actions .invite[hidden], .board-actions .add-player[hidden] { display: none; }
   th.name-cell.empty-seat .name { color: #c2410c; font-style: italic; }
+  th.name-cell .name::placeholder { color: #c2410c; opacity: .75; font-style: italic; }
   th.name-cell.empty-seat { background: repeating-linear-gradient(135deg, #fff7ed 0 8px, #ffedd5 8px 16px) !important; }
   .chip .short { font-size: 11px; font-weight: 800; color: #c2410c; }
   .chip.active .short { color: #fff; }
@@ -264,6 +265,12 @@
     box-shadow: 0 4px 14px rgba(250,204,21,.25);
   }
   .banner.show { display: block; animation: pop .4s ease-out; }
+  .banner .replay {
+    display: inline-block; margin-top: 10px; font-size: 15px; font-weight: 800;
+    background: var(--brand); border-color: var(--brand); color: #fff; padding: 9px 16px;
+    box-shadow: 0 3px 10px rgba(21,128,61,.3);
+  }
+  .banner .replay:hover { filter: brightness(1.06); background: var(--brand); }
   .banner small { display: block; font-size: 13px; font-weight: 600; margin-top: 2px; opacity: .85; }
   @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   thead tr th.winner { background: var(--gold-bg); }
@@ -484,7 +491,7 @@
       <li data-i="🔥"><b>Kebakar:</b> setiap baris dijumlahkan, kalau total seorang pemain <b>disalip</b> (dilewati) pemain lain, totalnya <b>kebakar</b> kembali ke <b>0</b> (tanda 🔥 0). Kalau totalnya cuma <b>sama</b> (misal 350 dan 350), <b>belum kebakar</b>. <b>Titik aman:</b> total <b>100 atau kurang</b> tidak bisa kebakar.</li>
       <li data-i="⏳">Kebakar baru dihitung setelah <b>semua pemain di baris itu mengisi</b>. Yang tidak dapat poin tetap isi <b>0</b>.</li>
       <li data-i="🔀">Pemain dengan nilai <b>terendah</b> dapat tugas mulia <b>mengocok kartu</b>. Pemain dengan nilai <b>tertinggi</b> <b>dapat bagian kartu duluan</b>.</li>
-      <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang.</li>
+      <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang. Klik <b>🔄 Main Lagi dari Nol</b> untuk mulai lagi dengan pemain yang sama.</li>
     </ul>
   </section>
 
@@ -806,6 +813,16 @@
     const body = el.querySelector('tbody');
     const banner = el.querySelector('.banner');
     const rolesEl = el.querySelector('.roles');
+    // Sudah ada pemenang → mulai permainan baru: skor kembali 0, nama pemain tetap
+    banner.addEventListener('click', e => {
+      if (!e.target.closest('.replay')) return;
+      if (!confirm('Mulai permainan baru di "' + board.name + '"? Skor semua pemain kembali 0, nama pemain tetap.')) return;
+      board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
+      board.auto = {};
+      write(bpath(), boardToRemote(board));
+      save(); render();
+      toast('🔄 Permainan baru dimulai di ' + board.name + '. Semangat!', 'info');
+    });
     const wrap = el.querySelector('.wrap');
     let resets = [];
     let pendingRows = [];
@@ -827,6 +844,7 @@
         th.innerHTML = '<span class="crown">👑</span><input class="name" size="1" aria-label="Nama pemain"><button class="remove-player" title="Hapus pemain">×</button>';
         const inp = th.querySelector('input');
         inp.value = name;
+        inp.placeholder = 'Pemain ' + (c + 1);
         th.classList.toggle('empty-seat', isEmptySeat(name));
         inp.addEventListener('input', () => {
           board.players[c] = inp.value;
@@ -933,7 +951,8 @@
       if (winners.length) {
         const who = winners.map(playerName);
         banner.innerHTML = '🏆 ' + who.map(esc).join(' & ') + (who.length > 1 ? ' seri, sama-sama menang!' : ' MENANG!') +
-          '<small>' + esc(board.name) + ' · Total ' + fmt(Math.max(...t)) + ' (target ' + fmt(app.target) + ')</small>';
+          '<small>' + esc(board.name) + ' · Total ' + fmt(Math.max(...t)) + ' (target ' + fmt(app.target) + ')</small>' +
+          '<button type="button" class="replay">🔄 Main Lagi dari Nol</button>';
         banner.classList.add('show');
       } else {
         banner.classList.remove('show');
@@ -1084,7 +1103,8 @@
       last.focus(); last.select();
     });
     el.querySelector('.reset').addEventListener('click', () => {
-      if (!confirm('Hapus semua nilai di "' + board.name + '"? Nama pemain tetap disimpan.')) return;
+      if (!confirm('Reset "' + board.name + '"? Semua skor DAN nama pemain akan dihapus.')) return;
+      board.players = Array.from({ length: SEATS }, () => ''); // 4 kursi kosong
       board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
       board.auto = {};
       write(bpath(), boardToRemote(board));
