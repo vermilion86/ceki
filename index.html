@@ -388,15 +388,44 @@
   }
 
   /* Tombol ± untuk HP (keyboard angka di HP sering tidak punya tanda minus) */
-  /* --kb = tinggi keyboard HP yang sedang terbuka, supaya tombol tidak tertutup keyboard */
-  #signBtn {
-    position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(14px + max(var(--kb, 0px), env(safe-area-inset-bottom))); z-index: 10;
-    width: 58px; height: 58px; border-radius: 50%;
-    font-size: 26px; font-weight: 700; display: none;
-    background: var(--accent); color: #fff; border: none;
-    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  /* Bar di atas keyboard saat mengisi skor (--kb = tinggi keyboard HP yang sedang terbuka) */
+  #keybar {
+    position: fixed; left: 0; right: 0; z-index: 12;
+    bottom: max(var(--kb, 0px), env(safe-area-inset-bottom));
+    display: none; gap: 6px;
+    padding: 7px max(8px, env(safe-area-inset-right)) 7px max(8px, env(safe-area-inset-left));
+    background: rgba(255,255,255,.97); border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 14px rgba(16,24,40,.08);
   }
-  #signBtn.show { display: block; }
+  #keybar.show { display: flex; }
+  #keybar button { flex: 1; padding: 10px 4px; font-size: 15px; font-weight: 700; border-radius: 10px; white-space: nowrap; }
+  #keybar #signBtn { background: #fef2f2; border-color: #fecaca; color: var(--neg); }
+  #keybar #kbNext { flex: 1.4; background: var(--kbc, var(--brand)); border-color: var(--kbc, var(--brand)); color: #fff; }
+  #keybar button:disabled { opacity: .4; }
+  body.typing #toasts { bottom: calc(76px + var(--kb, 0px)); }
+
+  /* Jendela ganti nama: selalu di bagian atas layar yang terlihat (tidak tertutup keyboard) */
+  .sheet {
+    position: fixed; left: 0; right: 0; top: var(--vvtop, 0px); height: var(--vvh, 100%); z-index: 40;
+    background: rgba(16,24,40,.45); display: flex; align-items: flex-start; justify-content: center;
+    padding: 12px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
+  }
+  .sheet[hidden] { display: none; }
+  .sheet-card { width: min(420px, 100%); background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 20px 50px rgba(16,24,40,.3); }
+  .sheet-title { font-weight: 800; font-size: 16px; margin-bottom: 10px; }
+  .sheet-title small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sheet input {
+    width: 100%; font: inherit; font-size: 18px; font-weight: 700; padding: 11px 12px;
+    border: 2px solid var(--line); border-radius: 10px; color: var(--text); background: #fff;
+  }
+  .sheet input:focus { outline: none; border-color: var(--brand); }
+  .sheet .sheet-err { min-height: 18px; font-size: 13px; font-weight: 600; color: var(--neg); margin: 6px 2px; }
+  .sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+  .sheet .row button { padding: 10px 16px; font-size: 15px; }
+
+  /* Nama pemain: diketuk untuk diganti */
+  .name { cursor: pointer; }
+  .board-actions .undo:disabled { opacity: .4; cursor: default; }
 
   /* Notifikasi (bisa bertumpuk) */
   #toasts {
@@ -513,12 +542,30 @@
       <li data-i="⏳">Kebakar baru dihitung setelah <b>semua pemain di baris itu mengisi</b>. Yang tidak dapat poin tetap isi <b>0</b>.</li>
       <li data-i="🔀">Pemain dengan nilai <b>terendah</b> dapat tugas mulia <b>mengocok kartu</b>. Pemain dengan nilai <b>tertinggi</b> <b>dapat bagian kartu duluan</b>.</li>
       <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang. Tombol <b>🔄 Main Lagi</b> memulai dari nol dengan pemain yang sama (bisa juga di tengah permainan); <b>Reset</b> menghapus skor dan nama.</li>
-      <li data-i="🪪">Nama pemain <b>tidak boleh sama</b>, termasuk dengan pemain di lapak lain.</li>
+      <li data-i="🪪">Nama pemain <b>tidak boleh sama</b>, termasuk dengan pemain di lapak lain. Ketuk nama untuk menggantinya.</li>
+      <li data-i="⌨️">Saat mengisi skor: <b>Lanjut ➜</b> pindah ke pemain berikutnya, <b>± Minus</b> untuk angka minus, <b>↩ Undo</b> membatalkan perubahan terakhir.</li>
     </ul>
   </section>
 
   <div id="toasts" role="status" aria-live="polite"></div>
-  <button id="signBtn" type="button" aria-label="Ganti tanda plus/minus">±</button>
+  <div id="keybar" role="toolbar" aria-label="Alat isi skor">
+    <button id="kbUndo" type="button" title="Batalkan perubahan terakhir">↩ Undo</button>
+    <button id="signBtn" type="button" title="Ganti tanda plus/minus">± Minus</button>
+    <button id="kbNext" type="button" title="Pindah ke kotak pemain berikutnya">Lanjut ➜</button>
+    <button id="kbDone" type="button" title="Selesai mengisi, tutup keyboard">✓ Selesai</button>
+  </div>
+
+  <div class="sheet" id="nameSheet" hidden role="dialog" aria-modal="true" aria-labelledby="nameSheetTitle">
+    <div class="sheet-card">
+      <div class="sheet-title" id="nameSheetTitle"></div>
+      <input id="nameSheetInput" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" maxlength="24" placeholder="Ketik nama pemain">
+      <div class="sheet-err" id="nameSheetErr"></div>
+      <div class="row">
+        <button type="button" id="nameSheetCancel">Batal</button>
+        <button type="button" id="nameSheetSave" class="primary">Simpan</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -821,6 +868,7 @@
 
   // ---------- Satu papan skor (lapak) ----------
   const mounted = []; // papan yang sedang tampil
+  const undoStacks = {}; // id lapak → daftar langkah undo (per HP)
 
   function mountBoard(bi) {
     const board = app.boards[bi];
@@ -834,6 +882,7 @@
         '<input class="board-name" size="1" aria-label="Nama lapak"></div>' +
         '<div class="board-actions">' +
           '<button class="add-player">+ Pemain</button>' +
+          '<button class="undo" disabled title="Batalkan perubahan terakhir">↩ Undo</button>' +
           '<button class="add-row primary">+ Baris</button>' +
           '<button class="replay-btn" title="Mulai lagi dari nol: skor jadi 0, nama pemain tetap">🔄 Main Lagi</button>' +
           '<button class="reset danger" title="Hapus semua skor dan nama pemain">Reset</button>' +
@@ -855,6 +904,7 @@
     // Bisa dipakai kapan saja (sudah ada pemenang atau masih di tengah permainan)
     function replay() {
       if (!confirm('Mulai lagi dari nol di "' + board.name + '"? Skor semua pemain kembali 0, nama pemain tetap.')) return;
+      track(beginStep('Main Lagi'), '');
       board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
       board.auto = {};
       write(bpath(), boardToRemote(board));
@@ -872,9 +922,54 @@
     const playerName = i => board.players[i] || 'Pemain ' + (i + 1);
     const cellAt = (r, c) => body.querySelector('input[data-r="' + r + '"][data-c="' + c + '"]');
 
+    // ---------- Undo ----------
+    // Setiap perubahan dicatat nilai lamanya. Ketikan di satu kotak (sampai pindah kotak) dihitung satu langkah.
+    const undoStack = undoStacks[board.id] || (undoStacks[board.id] = []);
+    const undoBtn = el.querySelector('.undo');
+    let session = null; // langkah yang sedang berjalan (selama satu kotak diketik)
+    function beginStep(label) {
+      const step = { label, paths: {} };
+      undoStack.push(step);
+      if (undoStack.length > 50) undoStack.shift();
+      updateUndo();
+      return step;
+    }
+    function track(step, path) {
+      if (path in step.paths) return;
+      step.paths[path] = clone(path === '' ? boardToRemote(board) : getPath(board, path));
+    }
+    function updateUndo() {
+      const last = undoStack[undoStack.length - 1];
+      undoBtn.disabled = !last;
+      undoBtn.title = last ? 'Batalkan: ' + last.label : 'Belum ada yang bisa dibatalkan';
+      if (document.activeElement && document.activeElement._undo === undo) updateKeybar();
+    }
+    function undo() {
+      session = null;
+      const step = undoStack.pop();
+      if (!step) { toast('Belum ada yang bisa di-undo', 'info'); return; }
+      Object.keys(step.paths).forEach(path => {
+        const old = clone(step.paths[path]);
+        if (path === '') Object.assign(board, { name: old.name, players: old.players, rows: old.rows, auto: old.auto || {} });
+        else setPath(board, path, old);
+        write(bpath(path), old);
+      });
+      save();
+      sync(true);
+      updateUndo();
+      toast('↩️ Dibatalkan: ' + step.label, 'info');
+    }
+    undoBtn.addEventListener('click', undo);
+
     const bpath = sub => 'boards/' + board.id + (sub ? '/' + sub : '');
     nameInput.value = board.name;
-    nameInput.addEventListener('input', () => { board.name = nameInput.value; write(bpath('name'), board.name); save(); renderView(); });
+    let nameStep = null;
+    nameInput.addEventListener('input', () => {
+      if (!nameStep) { nameStep = beginStep('Nama lapak'); track(nameStep, 'name'); }
+      board.name = nameInput.value; write(bpath('name'), board.name); save(); renderView();
+    });
+    nameInput.addEventListener('blur', () => { nameStep = null; });
+    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.blur(); });
 
     function render() {
       namesRow.innerHTML = '<th class="rownum"></th>';
@@ -885,28 +980,31 @@
         const inp = th.querySelector('input');
         inp.value = name;
         inp.placeholder = 'Pemain ' + (c + 1);
+        inp.readOnly = true; // diganti lewat jendela nama, supaya keyboard tidak menutupi & layar tidak melompat
+        inp.title = 'Ketuk untuk ganti nama';
         th.classList.toggle('empty-seat', isEmptySeat(name));
-        inp.addEventListener('input', () => {
-          // Nama tidak boleh sama dengan pemain lain (di lapak mana pun)
-          const dup = nameTaken(inp.value, board, c);
-          th.classList.toggle('dup', !!dup);
-          inp.title = dup ? 'Nama "' + inp.value.trim() + '" sudah dipakai di ' + dup : '';
-          if (dup) return; // tidak disimpan sampai namanya beda
-          board.players[c] = inp.value;
-          th.classList.toggle('empty-seat', isEmptySeat(inp.value));
-          write(bpath('players/' + c), inp.value);
-          save(); renderTotals();
-        });
-        inp.addEventListener('blur', () => {
-          if (!th.classList.contains('dup')) return;
-          const bad = inp.value.trim();
-          inp.value = board.players[c]; // kembali ke nama sebelumnya
-          th.classList.remove('dup');
-          inp.title = '';
-          toast('Nama "' + bad + '" sudah dipakai, pakai nama lain (misal ' + bad + ' 2)');
+        inp.addEventListener('click', () => {
+          openNameEditor({
+            title: isEmptySeat(board.players[c]) ? 'Isi nama pemain' : 'Ganti nama pemain',
+            sub: board.name + ' · kursi ' + (c + 1),
+            value: isEmptySeat(board.players[c]) ? '' : board.players[c],
+            check: v => {
+              const dup = nameTaken(v, board, c);
+              return dup ? 'Nama "' + v.trim() + '" sudah dipakai di ' + dup + '. Pakai nama lain (misal ' + v.trim() + ' 2).' : '';
+            },
+            save: v => {
+              if (v === board.players[c]) return;
+              const step = beginStep('Nama pemain kursi ' + (c + 1));
+              track(step, 'players/' + c);
+              board.players[c] = v;
+              write(bpath('players/' + c), v);
+              save(); sync(true);
+            }
+          });
         });
         th.querySelector('button').addEventListener('click', () => {
           if (!confirm('Hapus pemain "' + playerName(c) + '" dari ' + board.name + ' beserta semua nilainya?')) return;
+          track(beginStep('Hapus pemain ' + playerName(c)), '');
           board.players.splice(c, 1);
           board.rows.forEach(r => r.splice(c, 1));
           board.auto = {};
@@ -934,6 +1032,7 @@
         inp.autocomplete = 'off';
         inp.size = 1;
         inp.placeholder = ' ';
+        inp.enterKeyHint = 'next';
         inp.value = row[c] ?? '';
         inp.dataset.r = r; inp.dataset.c = c;
         styleInput(inp);
@@ -941,17 +1040,20 @@
         inp.addEventListener('keydown', e => onKey(e, inp));
         inp.addEventListener('focus', () => {
           inp.dataset.prev = inp.value;
-          signBtn.style.background = color;
-          signBtn.classList.add('show');
+          showKeybar(inp, color);
         });
         inp.addEventListener('blur', () => {
-          signBtn.classList.remove('show');
+          hideKeybarSoon();
           checkCell(inp);
+          session = null; // ketikan di kotak ini selesai → satu langkah undo
           // Kalau tidak diubah tapi sementara itu ada perubahan dari HP lain, tampilkan yang terbaru
           const v = board.rows[r]?.[c] ?? '';
           if (inp.value === inp.dataset.prev && inp.value !== v) { inp.value = v; styleInput(inp); }
         });
         inp._onInput = () => onCellInput(inp); // dipakai tombol ±
+        inp._next = () => focusNext(r, c);      // tombol Lanjut
+        inp._undo = undo;
+        inp._canUndo = () => undoStack.length > 0;
         td.appendChild(inp);
         tr.appendChild(td);
       });
@@ -1065,6 +1167,12 @@
       // Hanya boleh angka, tanda minus/plus cuma di depan
       const clean = inp.value.replace(/−/g, '-').replace(/[^\d.,+-]/g, '').replace(/(?!^)[+-]/g, '');
       if (clean !== inp.value) inp.value = clean;
+      // Satu langkah undo per kotak: mulai langkah baru kalau pindah ke kotak lain
+      if (!session || session.cell !== r + ':' + c) {
+        session = beginStep('Skor ' + playerName(c) + ' baris ' + (r + 1));
+        session.cell = r + ':' + c;
+      }
+      track(session, 'rows/' + r + '/' + c);
       board.rows[r][c] = inp.value;
       write(bpath('rows/' + r + '/' + c), inp.value);
       styleInput(inp);
@@ -1093,6 +1201,7 @@
     }
 
     function setCell(r, c, v) {
+      if (session) track(session, 'rows/' + r + '/' + c);
       board.rows[r][c] = v;
       write(bpath('rows/' + r + '/' + c), v);
       const el = cellAt(r, c);
@@ -1106,6 +1215,7 @@
       const isTrigger = AUTO_ZERO.includes(parse(board.rows[r][c]));
       if (rec && rec.by === c && !isTrigger) {
         rec.cols.forEach(k => { if (board.rows[r][k] === '0') setCell(r, k, ''); });
+        if (session) track(session, 'auto/' + r);
         delete board.auto[r];
         write(bpath('auto/' + r), null);
       }
@@ -1114,7 +1224,11 @@
         board.players.forEach((_, k) => {
           if (k !== c && String(board.rows[r][k] ?? '').trim() === '') { setCell(r, k, '0'); cols.push(k); }
         });
-        if (cols.length) { board.auto[r] = { by: c, cols }; write(bpath('auto/' + r), board.auto[r]); }
+        if (cols.length) {
+          if (session) track(session, 'auto/' + r);
+          board.auto[r] = { by: c, cols };
+          write(bpath('auto/' + r), board.auto[r]);
+        }
       }
     }
 
@@ -1123,10 +1237,20 @@
       if (el) { el.focus(); el.select(); }
     }
 
+    // Lanjut: ke pemain berikutnya di baris yang sama, lalu ke baris berikutnya
+    function focusNext(r, c) {
+      if (c + 1 < board.players.length) focusCell(r, c + 1);
+      else {
+        if (r + 1 >= board.rows.length) addRow(false);
+        focusCell(r + 1, 0);
+      }
+    }
     function onKey(e, inp) {
       const r = +inp.dataset.r, c = +inp.dataset.c;
-      if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); focusCell(r + 1, c); }
+      if (e.key === 'Enter') { e.preventDefault(); focusNext(r, c); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); focusCell(r + 1, c); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); focusCell(r - 1, c); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inp.value.length) { e.preventDefault(); undo(); }
     }
 
     function addRow(focus) {
@@ -1147,16 +1271,17 @@
     };
     addPlayerBtn.addEventListener('click', () => {
       if (board.players.length >= SEATS) { toast('Satu lapak maksimal ' + SEATS + ' pemain'); return; }
+      track(beginStep('Tambah pemain'), '');
       board.players.push('Pemain ' + (board.players.length + 1));
       board.rows.forEach(r => r.push(''));
       write(bpath(), boardToRemote(board));
       save(); render();
       const names = namesRow.querySelectorAll('.name');
-      const last = names[names.length - 1];
-      last.focus(); last.select();
+      names[names.length - 1].click(); // langsung buka jendela nama untuk pemain baru
     });
     el.querySelector('.reset').addEventListener('click', () => {
       if (!confirm('Reset "' + board.name + '"? Semua skor DAN nama pemain akan dihapus.')) return;
+      track(beginStep('Reset'), '');
       board.players = Array.from({ length: SEATS }, () => ''); // 4 kursi kosong
       board.rows = Array.from({ length: 10 }, () => board.players.map(() => ''));
       board.auto = {};
@@ -1181,29 +1306,31 @@
     });
 
     // Perbarui tampilan dari data terbaru (perubahan dari HP lain) tanpa mengganggu kotak yang sedang diketik
-    function sync() {
+    function sync(force) {
       if (board.players.length !== namesRow.querySelectorAll('.name-cell').length || board.rows.length < body.rows.length) { render(); return; }
-      if (document.activeElement !== nameInput && nameInput.value !== board.name) nameInput.value = board.name;
+      if ((force || document.activeElement !== nameInput) && nameInput.value !== board.name) nameInput.value = board.name;
       namesRow.querySelectorAll('.name-cell').forEach((th, c) => {
         const inp = th.querySelector('.name');
-        if (inp === document.activeElement || inp.value === board.players[c]) return;
+        if (inp.value === board.players[c]) return;
         inp.value = board.players[c];
         th.classList.toggle('empty-seat', isEmptySeat(inp.value));
       });
       while (body.rows.length < board.rows.length) body.appendChild(makeRow(board.rows[body.rows.length], body.rows.length));
       body.querySelectorAll('td.cell input').forEach(inp => {
         const r = +inp.dataset.r, c = +inp.dataset.c, v = board.rows[r]?.[c] ?? '';
-        if (inp === document.activeElement || inp.value === v) return;
+        if ((!force && inp === document.activeElement) || inp.value === v) return;
         const was = score(inp.value);
         inp.value = v;
+        if (inp === document.activeElement) inp.dataset.prev = v;
         styleInput(inp);
         const n = score(v);
-        if ((n === 250 || n === 300) && n !== was) announceClose(r, c); // tutup tangan dari HP lain juga diumumkan
+        if (!force && (n === 250 || n === 300) && n !== was) announceClose(r, c); // tutup tangan dari HP lain juga diumumkan
       });
       renderTotals();
     }
 
     render();
+    updateUndo();
     return { el, renderTotals, sync, id: board.id };
   }
 
@@ -1262,6 +1389,8 @@
     const vv = window.visualViewport;
     const kb = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
     document.documentElement.style.setProperty('--kb', kb + 'px');
+    document.documentElement.style.setProperty('--vvtop', (vv ? Math.round(vv.offsetTop) : 0) + 'px');
+    document.documentElement.style.setProperty('--vvh', (vv ? Math.round(vv.height) : window.innerHeight) + 'px');
   }
   if (window.visualViewport) {
     visualViewport.addEventListener('resize', updateKeyboardInset);
@@ -1270,15 +1399,102 @@
   document.addEventListener('focusin', () => { updateKeyboardInset(); setTimeout(updateKeyboardInset, 350); });
   document.addEventListener('focusout', () => setTimeout(updateKeyboardInset, 350));
 
-  // Tombol ± : membalik tanda angka di kotak yang sedang aktif tanpa menutup keyboard
-  signBtn.addEventListener('pointerdown', e => e.preventDefault());
+  // ---------- Bar di atas keyboard: Undo, ± Minus, Lanjut, Selesai ----------
+  const keybar = document.getElementById('keybar');
+  const kbUndo = document.getElementById('kbUndo');
+  let keybarTimer;
+  function showKeybar(inp, color) {
+    clearTimeout(keybarTimer);
+    keybar.style.setProperty('--kbc', color);
+    keybar.classList.add('show');
+    document.body.classList.add('typing');
+    updateKeybar();
+    setTimeout(() => keepVisible(inp), 350); // tunggu keyboard selesai muncul
+  }
+  function hideKeybarSoon() {
+    clearTimeout(keybarTimer);
+    keybarTimer = setTimeout(() => {
+      if (document.activeElement && document.activeElement._next) return; // pindah ke kotak skor lain
+      keybar.classList.remove('show');
+      document.body.classList.remove('typing');
+    }, 80);
+  }
+  function updateKeybar() {
+    const inp = document.activeElement;
+    kbUndo.disabled = !(inp && inp._canUndo && inp._canUndo());
+  }
+  // Pastikan kotak yang diisi tidak tertutup keyboard/bar bawah atau baris nama yang menempel di atas
+  function keepVisible(inp) {
+    if (document.activeElement !== inp) return;
+    const vv = window.visualViewport;
+    const top = vv ? vv.offsetTop : 0, h = vv ? vv.height : window.innerHeight;
+    const r = inp.getBoundingClientRect();
+    const head = inp.closest('table')?.tHead?.getBoundingClientRect();
+    const minTop = Math.max(top, head ? head.bottom : 0) + 6;
+    const maxBottom = top + h - (keybar.offsetHeight || 0) - 8;
+    if (r.bottom > maxBottom) window.scrollBy(0, r.bottom - maxBottom);
+    else if (r.top < minTop) window.scrollBy(0, r.top - minTop);
+  }
+  // Tombol di bar tidak boleh mengambil fokus (supaya keyboard tetap terbuka)
+  keybar.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => { if (b.id !== 'kbDone') e.preventDefault(); }));
+  kbUndo.addEventListener('click', () => { const inp = document.activeElement; if (inp && inp._undo) inp._undo(); updateKeybar(); });
   signBtn.addEventListener('click', () => {
     const inp = document.activeElement;
     if (!inp || !inp._onInput) return;
-    const v = inp.value.trim().replace(/−/g, '-');
+    const v = inp.value.trim().replace(/\u2212/g, '-');
     inp.value = v.startsWith('-') ? v.slice(1) : v.startsWith('+') ? '-' + v.slice(1) : '-' + v;
     inp._onInput();
+    updateKeybar();
   });
+  document.getElementById('kbNext').addEventListener('click', () => {
+    const inp = document.activeElement;
+    if (inp && inp._next) inp._next();
+  });
+  document.getElementById('kbDone').addEventListener('click', () => {
+    const inp = document.activeElement;
+    if (inp && inp.blur) inp.blur();
+  });
+  document.addEventListener('input', e => { if (e.target && e.target._next) updateKeybar(); });
+
+  // ---------- Jendela ganti nama pemain ----------
+  const nameSheet = document.getElementById('nameSheet');
+  const nameSheetInput = document.getElementById('nameSheetInput');
+  const nameSheetErr = document.getElementById('nameSheetErr');
+  let nameSheetOpts = null;
+  function openNameEditor(opts) {
+    nameSheetOpts = opts;
+    document.getElementById('nameSheetTitle').innerHTML = esc(opts.title) + '<small>' + esc(opts.sub || '') + '</small>';
+    nameSheetInput.value = opts.value || '';
+    nameSheetErr.textContent = '';
+    updateKeyboardInset();
+    nameSheet.hidden = false;
+    nameSheetInput.focus(); // harus langsung di dalam ketukan supaya keyboard HP muncul
+    nameSheetInput.select();
+  }
+  function closeNameEditor() {
+    nameSheet.hidden = true;
+    nameSheetOpts = null;
+    nameSheetInput.blur();
+  }
+  function saveNameEditor() {
+    if (!nameSheetOpts) return;
+    const v = nameSheetInput.value.trim().replace(/\s+/g, ' ');
+    const err = nameSheetOpts.check ? nameSheetOpts.check(v) : '';
+    if (err) { nameSheetErr.textContent = err; nameSheetInput.focus(); return; }
+    const opts = nameSheetOpts;
+    closeNameEditor();
+    opts.save(v);
+  }
+  nameSheetInput.addEventListener('input', () => {
+    nameSheetErr.textContent = nameSheetOpts && nameSheetOpts.check ? nameSheetOpts.check(nameSheetInput.value) : '';
+  });
+  nameSheetInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); saveNameEditor(); }
+    else if (e.key === 'Escape') closeNameEditor();
+  });
+  document.getElementById('nameSheetSave').addEventListener('click', saveNameEditor);
+  document.getElementById('nameSheetCancel').addEventListener('click', closeNameEditor);
+  nameSheet.addEventListener('click', e => { if (e.target === nameSheet) closeNameEditor(); });
 
   targetInput.value = app.target;
   document.getElementById('targetHint').textContent = fmt(app.target);
