@@ -277,6 +277,39 @@
   dialog.share .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   dialog.share .wa { background: #25d366; border-color: #25d366; color: #fff; }
 
+  /* Pengaturan suara */
+  dialog.share .set-title { margin: 14px 0 2px; font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+  dialog.share .set-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 9px 2px; border-bottom: 1px solid #eef1f6; font-size: 14px; font-weight: 600; transition: opacity .15s;
+  }
+  dialog.share .set-row small { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  dialog.share .set-row.dim { opacity: .45; }
+  dialog.share .set-note { margin: 10px 0 14px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  dialog.share:has(#linesText) { max-height: calc(100% - 32px); overflow-y: auto; }
+  dialog.share .lines-pick { display: block; margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  dialog.share .lines-pick select {
+    display: block; width: 100%; margin-top: 4px; padding: 9px 10px; font: inherit; font-size: 15px; font-weight: 600;
+    color: var(--text); background: #fff; border: 1px solid #d8dee8; border-radius: 10px;
+  }
+  dialog.share textarea {
+    display: block; width: 100%; min-height: 170px; resize: vertical; padding: 10px; font: inherit; font-size: 14px; line-height: 1.5;
+    color: var(--text); background: #f8fafc; border: 1px solid #d8dee8; border-radius: 10px;
+  }
+  dialog.share textarea:focus, dialog.share .lines-pick select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  dialog.share .set-msg { margin: -6px 0 12px; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #9a3412; background: #fff7ed; }
+  dialog.share .set-msg[hidden] { display: none; }
+  .switch { position: relative; flex: none; width: 44px; height: 26px; }
+  .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: #cbd5e1; transition: background .15s; pointer-events: none; }
+  .switch span::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s;
+  }
+  .switch input:checked + span { background: var(--brand); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 2px; }
+
   /* Pemenang */
   .banner {
     display: none; margin: 0 0 12px; padding: 12px 16px;
@@ -442,6 +475,7 @@
     <div class="actions">
       <label class="target">Target <input id="target" type="text" inputmode="numeric" size="1"></label>
       <button id="soundBtn" class="icon" type="button" title="Suara notifikasi" aria-label="Suara notifikasi">🔊</button>
+      <button id="soundSetBtn" class="icon" type="button" title="Pengaturan suara" aria-label="Pengaturan suara">⚙️</button>
       <button id="addBoard" class="primary">+ Lapak</button>
     </div>
   </header>
@@ -464,6 +498,61 @@
       <button type="button" id="shareCopy">Salin</button>
       <button type="button" id="shareNative" hidden>Bagikan…</button>
       <button type="button" id="shareWa" class="wa">WhatsApp</button>
+    </div>
+  </dialog>
+
+  <dialog class="share" id="soundDlg">
+    <h3>⚙️ Pengaturan suara</h3>
+    <label class="set-row"><span>🔊 Suara notifikasi<small>Saklar utama, mematikan semua suara di bawah</small></span>
+      <span class="switch"><input type="checkbox" data-set="master"><span></span></span></label>
+
+    <div class="set-title">Jenis suara</div>
+    <label class="set-row sub"><span>🎵 Efek suara<small>Nada, kresek kartu, api, dan getar</small></span>
+      <span class="switch"><input type="checkbox" data-set="fx"><span></span></span></label>
+    <label class="set-row sub"><span>🗣️ Suara orang (teks dibacakan)<small>Kalimat lucu yang menyebut nama pemain</small></span>
+      <span class="switch"><input type="checkbox" data-set="voice"><span></span></span></label>
+
+    <div class="set-title">Kapan berbunyi</div>
+    <label class="set-row sub"><span>🔥 Kebakar</span>
+      <span class="switch"><input type="checkbox" data-set="burn"><span></span></span></label>
+    <label class="set-row sub"><span>🙌 Tutup tangan &amp; joker</span>
+      <span class="switch"><input type="checkbox" data-set="close"><span></span></span></label>
+    <label class="set-row sub"><span>🔀 Kocok kartu</span>
+      <span class="switch"><input type="checkbox" data-set="shuffle"><span></span></span></label>
+    <label class="set-row sub"><span>⭐ Dapat kartu duluan</span>
+      <span class="switch"><input type="checkbox" data-set="first"><span></span></span></label>
+
+    <div class="set-title">Kalimat</div>
+    <div class="set-row"><span>✍️ Kalimat yang diucapkan<small>Ubah, tambah, atau hapus kalimat lucunya</small></span>
+      <button type="button" id="linesOpen">Ubah…</button></div>
+
+    <p class="set-note">Notifikasi tulisan tetap muncul walau suaranya dimatikan. Pengaturan ini hanya berlaku di HP/perangkat ini.</p>
+    <p class="set-msg" id="soundMsg" role="status" hidden></p>
+    <div class="row">
+      <button type="button" id="soundTest">▶ Coba suara</button>
+      <button type="button" id="soundDlgClose" class="primary">Selesai</button>
+    </div>
+  </dialog>
+
+  <dialog class="share" id="linesDlg">
+    <h3>✍️ Ubah kalimat suara</h3>
+    <label class="lines-pick">Untuk momen
+      <select id="linesKind">
+        <option value="burn">🔥 Kebakar</option>
+        <option value="close">🙌 Tutup tangan</option>
+        <option value="joker">🃏 Tutup tangan pakai joker</option>
+        <option value="shuffle">🔀 Kocok kartu</option>
+        <option value="first">⭐ Dapat kartu duluan</option>
+      </select>
+    </label>
+    <textarea id="linesText" rows="8" spellcheck="false" aria-label="Daftar kalimat, satu per baris"></textarea>
+    <p class="set-note">Satu kalimat per baris, dipilih acak tiap kali. Tulis <b>{n}</b> di tempat nama pemain<span id="linesByHint"> dan <b>{by}</b> di tempat nama yang menyalip</span>. Maksimal 30 kalimat, 140 huruf per kalimat. Kalau dikosongkan, dipakai kalimat bawaan.</p>
+    <p class="set-msg" id="linesMsg" role="status" hidden></p>
+    <div class="row">
+      <button type="button" id="linesReset">Kembalikan bawaan</button>
+      <button type="button" id="linesTry">▶ Coba</button>
+      <button type="button" id="linesCancel">Batal</button>
+      <button type="button" id="linesSave" class="primary">Simpan</button>
     </div>
   </dialog>
 
@@ -672,6 +761,14 @@
   const rolesReady = () => Date.now() >= rolesReadyAt;
   let soundOn = true;
   try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) {}
+  // Pengaturan rinci (disimpan per perangkat): fx = efek suara, voice = suara orang, sisanya = kapan berbunyi
+  const SET_KEY = 'papan-skor-sound-set';
+  const soundSet = { fx: true, voice: true, burn: true, close: true, shuffle: true, first: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
+    Object.keys(soundSet).forEach(k => { if (typeof saved[k] === 'boolean') soundSet[k] = saved[k]; });
+  } catch (e) {}
+  const saveSoundSet = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(soundSet)); } catch (e) {} };
   let actx = null;
   function audio() {
     if (!actx) {
@@ -743,7 +840,7 @@
   }
 
   // Kalimat lucu yang diucapkan, dipilih acak. {n} = nama pemain, {by} = penyalip.
-  const LINES = {
+  const DEFAULT_LINES = {
     joker: [
       'Astaga naga! {n} tutup tangan pakai joker!',
       'Alamak! {n} tutup tangan pakai joker! Jokernya setia banget!',
@@ -783,20 +880,42 @@
       'Sultan {n} dapat kartu duluan!'
     ]
   };
+  // Kalimat yang dipakai = bawaan, kecuali sudah diubah lewat ⚙️ → "Ubah kalimat" (disimpan per perangkat)
+  const LINES_KEY = 'papan-skor-lines';
+  const MAX_LINES = 30, MAX_LINE_LEN = 140;
+  const LINE_KINDS = Object.keys(DEFAULT_LINES);
+  function cleanLines(list) {
+    return (Array.isArray(list) ? list : [])
+      .map(s => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_LINE_LEN))
+      .filter(Boolean).slice(0, MAX_LINES);
+  }
+  const LINES = JSON.parse(JSON.stringify(DEFAULT_LINES));
+  try {
+    const saved = JSON.parse(localStorage.getItem(LINES_KEY) || '{}');
+    LINE_KINDS.forEach(k => { const a = cleanLines(saved[k]); if (a.length) LINES[k] = a; });
+  } catch (e) {}
   function line(kind, n, by) {
     const list = LINES[kind];
-    return list[Math.floor(Math.random() * list.length)].replace('{n}', n).replace('{by}', by || 'lawan');
+    // {n} = nama pemain, {by} = penyalip. Satu putaran, supaya nama yang kebetulan berisi "{by}" tidak ikut diganti.
+    return list[Math.floor(Math.random() * list.length)]
+      .replace(/\{(n|by)\}/g, (_, k) => k === 'n' ? n : (by || 'lawan'));
   }
 
   // Antre supaya suara yang muncul bersamaan (misal tutup tangan lalu kebakar) tidak bertabrakan:
   // efek suara dulu, lalu suara orang menyebut nama pemain.
   const SOUND_LEN = { burn: 750, close: 900, joker: 1300, shuffle: 850, first: 650 };
   let soundChain = Promise.resolve();
-  function playSound(kind, say) {
+  // force = true: untuk tombol "Coba suara", abaikan pilihan "kapan berbunyi" (tapi tetap ikut efek/suara orang)
+  function playSound(kind, say, force) {
     if (!soundOn || !SOUND_LEN[kind]) return;
+    if (!force && soundSet[kind === 'joker' ? 'close' : kind] === false) return;
     soundChain = soundChain
-      .then(() => { playSoundNow(kind); return new Promise(r => setTimeout(r, SOUND_LEN[kind] - 250)); })
-      .then(() => speak(say))
+      .then(() => {
+        if (!soundSet.fx) return;
+        playSoundNow(kind);
+        return new Promise(r => setTimeout(r, SOUND_LEN[kind] - 250));
+      })
+      .then(() => { if (soundSet.voice) return speak(say); })
       .catch(() => {});
   }
 
@@ -840,14 +959,101 @@
     soundBtn.classList.toggle('off', !soundOn);
     soundBtn.title = soundOn ? 'Suara notifikasi: nyala (klik untuk matikan)' : 'Suara notifikasi: mati (klik untuk nyalakan)';
   }
-  soundBtn.addEventListener('click', () => {
-    soundOn = !soundOn;
+  function setSoundOn(on) {
+    soundOn = on;
     try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) {}
     renderSoundBtn();
     if (!soundOn && speech) speech.cancel();
-    if (soundOn) playSound('close', 'Suara nyala!'); // contoh suara
-  });
+    if (soundOn) playSound('close', 'Suara nyala!', true); // contoh suara
+  }
+  soundBtn.addEventListener('click', () => { setSoundOn(!soundOn); syncSoundDlg(); });
   renderSoundBtn();
+
+  // ---------- Pengaturan suara (dialog) ----------
+  const soundDlg = document.getElementById('soundDlg');
+  const setInputs = [...soundDlg.querySelectorAll('input[data-set]')];
+  function syncSoundDlg() {
+    setInputs.forEach(inp => {
+      const k = inp.dataset.set;
+      inp.checked = k === 'master' ? soundOn : soundSet[k];
+    });
+    soundDlg.querySelectorAll('.set-row.sub').forEach(row => row.classList.toggle('dim', !soundOn));
+  }
+  setInputs.forEach(inp => inp.addEventListener('change', () => {
+    const k = inp.dataset.set;
+    if (k === 'master') { setSoundOn(inp.checked); }
+    else {
+      soundSet[k] = inp.checked;
+      saveSoundSet();
+      if (k === 'voice' && !inp.checked && speech) speech.cancel();
+    }
+    syncSoundDlg();
+  }));
+  document.getElementById('soundSetBtn').addEventListener('click', () => {
+    syncSoundDlg();
+    soundDlg.showModal ? soundDlg.showModal() : soundDlg.setAttribute('open', '');
+  });
+  const closeSoundDlg = () => (soundDlg.close ? soundDlg.close() : soundDlg.removeAttribute('open'));
+  document.getElementById('soundDlgClose').addEventListener('click', closeSoundDlg);
+  const soundMsg = document.getElementById('soundMsg');
+  const showSoundMsg = text => { soundMsg.textContent = text || ''; soundMsg.hidden = !text; };
+  document.getElementById('soundTest').addEventListener('click', () => {
+    if (!soundOn) return showSoundMsg('Nyalakan dulu saklar "Suara notifikasi" di atas.');
+    if (!soundSet.fx && !soundSet.voice) return showSoundMsg('Efek suara dan suara orang sama-sama mati, jadi tidak ada yang berbunyi.');
+    showSoundMsg('');
+    playSound('first', 'Tes suara. Budi dapat kartu duluan!', true);
+  });
+  soundDlg.addEventListener('close', () => showSoundMsg(''));
+
+  // ---------- Ubah kalimat yang diucapkan ----------
+  const linesDlg = document.getElementById('linesDlg');
+  const linesKind = document.getElementById('linesKind');
+  const linesText = document.getElementById('linesText');
+  const linesMsg = document.getElementById('linesMsg');
+  const showLinesMsg = text => { linesMsg.textContent = text || ''; linesMsg.hidden = !text; };
+  const closeLinesDlg = () => (linesDlg.close ? linesDlg.close() : linesDlg.removeAttribute('open'));
+  const splitLines = text => String(text ?? '').split(/\r?\n/);
+  let draft = {}, draftKind = 'burn'; // draft[momen] = teks yang sedang diedit (satu kalimat per baris), belum disimpan
+  function showKind(k) {
+    draftKind = k;
+    linesKind.value = k;
+    linesText.value = draft[k];
+    document.getElementById('linesByHint').hidden = k !== 'burn'; // {by} hanya ada di kebakar
+    showLinesMsg('');
+  }
+  document.getElementById('linesOpen').addEventListener('click', () => {
+    LINE_KINDS.forEach(k => { draft[k] = LINES[k].join('\n'); });
+    showKind('burn');
+    linesDlg.showModal ? linesDlg.showModal() : linesDlg.setAttribute('open', '');
+  });
+  linesKind.addEventListener('change', () => { draft[draftKind] = linesText.value; showKind(linesKind.value); });
+  linesText.addEventListener('input', () => showLinesMsg(''));
+  document.getElementById('linesReset').addEventListener('click', () => {
+    draft[draftKind] = DEFAULT_LINES[draftKind].join('\n');
+    showKind(draftKind);
+  });
+  document.getElementById('linesTry').addEventListener('click', () => {
+    if (!soundOn) return showLinesMsg('Saklar "Suara notifikasi" sedang mati, nyalakan dulu di Pengaturan suara.');
+    if (!soundSet.voice) return showLinesMsg('"Suara orang" sedang mati, nyalakan dulu di Pengaturan suara.');
+    const list = cleanLines(splitLines(linesText.value));
+    if (!list.length) return showLinesMsg('Belum ada kalimat. Tulis dulu satu kalimat.');
+    const text = list[Math.floor(Math.random() * list.length)].replace(/\{(n|by)\}/g, (_, k) => k === 'n' ? 'Budi' : 'Joko');
+    if (speech) speech.cancel();
+    speak(text);
+  });
+  document.getElementById('linesSave').addEventListener('click', () => {
+    draft[draftKind] = linesText.value;
+    const out = {};
+    LINE_KINDS.forEach(k => {
+      const a = cleanLines(splitLines(draft[k]));
+      LINES[k] = a.length ? a : DEFAULT_LINES[k].slice(); // dikosongkan = pakai bawaan
+      if (JSON.stringify(LINES[k]) !== JSON.stringify(DEFAULT_LINES[k])) out[k] = LINES[k];
+    });
+    try { localStorage.setItem(LINES_KEY, JSON.stringify(out)); } catch (e) {}
+    closeLinesDlg();
+  });
+  document.getElementById('linesCancel').addEventListener('click', closeLinesDlg);
+  linesDlg.addEventListener('close', () => { showLinesMsg(''); if (speech) speech.cancel(); });
 
   // kind: (kosong) = salah isi, 'burn' = kebakar, 'close' = tutup tangan, 'joker' = tutup tangan pakai joker
   function toast(msg, kind, sub, say) {
