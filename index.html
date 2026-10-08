@@ -758,7 +758,7 @@
       'Sikat! {n} tutup tangan!',
       'Ciee, {n} tutup tangan! Yang lain sabar ya.',
       'Nah lho! {n} tutup tangan duluan!',
-      'Mantap kali! {n} tutup tangan!'
+      'Jago bener! {n} tutup tangan!'
     ],
     burn: [
       'Waduh! {n} kebakar! Panggil pemadam kebakaran!',
@@ -766,7 +766,7 @@
       'Aduh biyung, {n} kebakar! Sabar, ini ujian.',
       'Kasihan deh {n}, dibakar sama {by}!',
       'Asap di mana-mana! {n} kebakar!',
-      'Yaelah! {n} kebakar, balik ke rakyat jelata lagi deh!'
+      'Yaelah! {n} kebakar, balik ke nol lagi deh!'
     ],
     shuffle: [
       'Giliran {n} mengocok kartu!',
@@ -911,6 +911,7 @@
     let pendingRows = [];
     let lastResetKey = null; // null = belum pernah render, jangan munculkan pesan untuk salip lama
     let resetToastTimer;
+    let burnQueue = []; // kotak ("baris:kolom") yang baru kebakar dan menunggu diumumkan
 
     const playerName = i => board.players[i] || 'Pemain ' + (i + 1);
     const cellAt = (r, c) => body.querySelector('input[data-r="' + r + '"][data-c="' + c + '"]');
@@ -1078,20 +1079,29 @@
       });
       // Beri tahu kalau ada salip baru (ditunda sebentar supaya tidak muncul saat masih mengetik)
       const key = resets.map(x => x.r + ':' + x.c).join(',');
-      clearTimeout(resetToastTimer);
       if (lastResetKey === null) lastResetKey = key;
       if (key !== lastResetKey) {
-        const fresh = resets.filter(x => !lastResetKey.split(',').includes(x.r + ':' + x.c));
+        const known = lastResetKey.split(',');
+        const fresh = resets.filter(x => !known.includes(x.r + ':' + x.c));
         lastResetKey = key;
-        if (fresh.length) resetToastTimer = setTimeout(() => {
-          // Semua yang kebakar disebut sekaligus (bisa lebih dari satu pemain)
-          const burned = fresh.map(x => playerName(x.c));
-          const burners = [...new Set(fresh.flatMap(x => x.by))].map(playerName);
-          const joinId = list => list.length > 1 ? list.slice(0, -1).join(', ') + ' dan ' + list[list.length - 1] : list[0];
-          toast('🔥 ' + burned.join(' & ') + ' KEBAKAR!', 'burn',
-            board.name + ' · ' + fresh.map(x => playerName(x.c) + ' (' + fmt(x.lost) + ') disalip ' + x.by.map(playerName).join(' & ')).join(' · ') + ' → 0',
-            line('burn', joinId(burned), joinId(burners)));
-        }, 700);
+        if (fresh.length) {
+          // Timer TIDAK dibatalkan oleh render berikutnya (misal gema data dari server setelah kita menulis skor,
+          // atau ketikan angka kedua). Saat timer jalan, cuma yang masih kebakar yang diumumkan.
+          burnQueue.push(...fresh.map(x => x.r + ':' + x.c));
+          clearTimeout(resetToastTimer);
+          resetToastTimer = setTimeout(() => {
+            const now = resets.filter(x => burnQueue.includes(x.r + ':' + x.c));
+            burnQueue = [];
+            if (!now.length) return; // sudah tidak kebakar lagi (angka diubah)
+            // Semua yang kebakar disebut sekaligus (bisa lebih dari satu pemain)
+            const burned = now.map(x => playerName(x.c));
+            const burners = [...new Set(now.flatMap(x => x.by))].map(playerName);
+            const joinId = list => list.length > 1 ? list.slice(0, -1).join(', ') + ' dan ' + list[list.length - 1] : list[0];
+            toast('🔥 ' + burned.join(' & ') + ' KEBAKAR!', 'burn',
+              board.name + ' · ' + now.map(x => playerName(x.c) + ' (' + fmt(x.lost) + ') disalip ' + x.by.map(playerName).join(' & ')).join(' · ') + ' → 0',
+              line('burn', joinId(burned), joinId(burners)));
+          }, 700);
+        }
       }
     }
 
