@@ -415,6 +415,8 @@
   .toast.burn { background: linear-gradient(135deg, #f97316, #dc2626); }
   .toast.close { background: linear-gradient(135deg, #16a34a, #0f766e); }
   .toast.joker { background: linear-gradient(135deg, #7c3aed, #db2777); }
+  .toast.shuffle { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+  .toast.first { background: linear-gradient(135deg, #16a34a, #65a30d); }
   .toast.big { font-size: 17px; padding: 12px 20px; }
   .toast small { display: block; font-size: 12px; font-weight: 600; opacity: .9; margin-top: 2px; }
   @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -509,7 +511,7 @@
       <li data-i="🧮">Setiap ronde selesai, jumlahkan poin kartu di tangan lalu tulis di kolom pemain. Kartu yang belum jadi dicatat <b>minus</b> (contoh <b>-35</b>).</li>
       <li data-i="🃏">Joker yang masih di tangan dan tidak masuk <b>seri</b> atau <b>tris</b> kena potongan <b>−50</b>.</li>
       <li data-i="🎯">Pemain yang <b>tutup tangan</b> cukup diisi <b>250</b> (atau <b>300</b> kalau pakai Joker), pemain lain otomatis <b>0</b> di ronde itu.</li>
-      <li data-i="🔥"><b>Kebakar:</b> setiap baris dijumlahkan, kalau total seorang pemain <b>disalip</b> (dilewati) pemain lain, totalnya <b>kebakar</b> kembali ke <b>0</b> (tanda 🔥 0). Kalau totalnya cuma <b>sama</b> (misal 350 dan 350), <b>belum kebakar</b>. <b>Titik aman:</b> total <b>100 atau kurang</b> tidak bisa kebakar.</li>
+      <li data-i="🔥"><b>Kebakar:</b> setiap baris dijumlahkan, kalau total seorang pemain <b>disalip</b> (dilewati) pemain lain, totalnya <b>kebakar</b> kembali ke <b>0</b> (tanda 🔥 0). Kalau totalnya cuma <b>sama</b> (misal 350 dan 350), <b>belum kebakar</b>; kalau lalu dilewati dari posisi seri, yang kebakar hanya pemain yang total <b>sebelum seri terbentuk</b> sudah di atas 100. <b>Titik aman:</b> kalau total sebelum ronde itu <b>100 atau kurang</b>, tidak bisa kebakar di ronde itu.</li>
       <li data-i="⏳">Kebakar baru dihitung setelah <b>semua pemain di baris itu mengisi</b>. Yang tidak dapat poin tetap isi <b>0</b>.</li>
       <li data-i="🔀">Pemain dengan nilai <b>terendah</b> dapat tugas mulia <b>mengocok kartu</b>. Pemain dengan nilai <b>tertinggi</b> <b>dapat bagian kartu duluan</b>.</li>
       <li data-i="🏆">Pemain pertama yang mencapai <b id="targetHint">1000</b> poin jadi pemenang. Tombol <b>🔄 Main Lagi</b> memulai dari nol dengan pemain yang sama (bisa juga di tengah permainan); <b>Reset</b> menghapus skor dan nama.</li>
@@ -610,8 +612,10 @@
 
   // Aturan kebakar: total dihitung baris demi baris. Kalau setelah sebuah baris pemain A
   // disalip (pemain lain yang tadinya di bawah/sama dengan A sekarang LEBIH BESAR dari A), total A kebakar → 0.
-  // Kalau totalnya cuma sama (misal 350 dan 350), belum kebakar — baru kebakar kalau nanti dilewati.
-  // Titik aman: total A pas 100 atau di bawahnya tidak kebakar.
+  // Kalau totalnya cuma sama (misal 350 dan 350), belum kebakar — baru kebakar kalau nanti dilewati,
+  // dan itu pun hanya kalau total pemain itu SEBELUM seri terbentuk sudah di atas titik aman.
+  // Titik aman: kalau total A SEBELUM baris itu pas 100 atau di bawahnya, A tidak kebakar di baris itu
+  // (meski total barunya melewati 100). Baru bisa kebakar mulai baris berikutnya.
   // Kebakar baru dicek setelah SEMUA pemain di baris itu mengisi (kosong = belum mengisi),
   // karena pemain lain mungkin juga dapat poin di ronde yang sama.
   function computeTotals(board) {
@@ -619,8 +623,17 @@
     let t = Array(n).fill(0);
     const resets = [];
     const pending = []; // baris yang baru sebagian diisi
+    const hist = [];    // hist[r] = total semua pemain SEBELUM baris r
+    // Total pemain p tepat sebelum baris yang membentuk seri dengan q (seri yang masih berlangsung di baris r).
+    // Dipakai untuk menentukan apakah p masih "aman" (<= titik aman) ketika disalip dari posisi seri.
+    const tieBase = (p, q, r) => {
+      let j = r;
+      while (j > 0 && hist[j - 1][p] === hist[j - 1][q]) j--;
+      return j === 0 ? 0 : hist[j - 1][p];
+    };
     board.rows.forEach((row, r) => {
       const before = t;
+      hist[r] = before;
       const after = before.map((v, c) => { const x = score(row[c]); return v + (isNaN(x) ? 0 : x); });
       const next = after.slice();
       const filled = board.players.map((_, c) => String(row[c] ?? '').trim() !== '' && !isNaN(score(row[c])));
@@ -630,11 +643,12 @@
         return;
       }
       for (let p = 0; p < n; p++) {
-        if (after[p] <= SAFE_LIMIT) continue;
+        if (before[p] <= SAFE_LIMIT) continue; // aman: total SEBELUM ronde ini masih ≤ 100
         const by = [];
         for (let q = 0; q < n; q++) {
-          // Dari posisi sama (misal 350 & 350) juga dihitung menyalip, asal sebelumnya sudah di atas titik aman
-          const wasBehind = before[q] < before[p] || (before[q] === before[p] && before[p] > SAFE_LIMIT);
+          // Dari posisi seri (misal 350 & 350) juga dihitung menyalip, asal total p SEBELUM seri itu terbentuk
+          // sudah di atas titik aman. Kalau seri terbentuk dari total <= 100, p tidak kebakar.
+          const wasBehind = before[q] < before[p] || (before[q] === before[p] && tieBase(p, q, r) > SAFE_LIMIT);
           if (q !== p && wasBehind && after[q] > after[p]) by.push(q);
         }
         if (by.length) { resets.push({ r, c: p, by, lost: after[p] }); next[p] = 0; }
@@ -652,6 +666,10 @@
 
   // ---------- Suara notifikasi (dibuat langsung dengan Web Audio, tanpa file) ----------
   const SOUND_KEY = 'papan-skor-sound';
+  // Pengumuman kocok/duluan baru boleh bunyi setelah halaman & data online selesai dimuat,
+  // supaya tidak bunyi sendiri untuk skor lama.
+  let rolesReadyAt = Date.now() + 2500;
+  const rolesReady = () => Date.now() >= rolesReadyAt;
   let soundOn = true;
   try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) {}
   let actx = null;
@@ -740,7 +758,7 @@
       'Sikat! {n} tutup tangan!',
       'Ciee, {n} tutup tangan! Yang lain sabar ya.',
       'Nah lho! {n} tutup tangan duluan!',
-      'Jago bener! {n} tutup tangan!'
+      'Mantap kali! {n} tutup tangan!'
     ],
     burn: [
       'Waduh! {n} kebakar! Panggil pemadam kebakaran!',
@@ -748,7 +766,21 @@
       'Aduh biyung, {n} kebakar! Sabar, ini ujian.',
       'Kasihan deh {n}, dibakar sama {by}!',
       'Asap di mana-mana! {n} kebakar!',
-      'Yaelah! {n} kebakar, balik ke nol lagi deh!'
+      'Yaelah! {n} kebakar, balik ke rakyat jelata lagi deh!'
+    ],
+    shuffle: [
+      'Giliran {n} mengocok kartu!',
+      '{n} kebagian kocok kartu nih!',
+      'Ayo {n}, kocok yang rapi ya!',
+      'Tugas mulia buat {n}: kocok kartu!',
+      '{n} yang kocok, jangan curang ya!'
+    ],
+    first: [
+      '{n} dapat kartu duluan!',
+      'Enak banget, {n} dapat kartu duluan!',
+      '{n} duluan nih! Silakan ambil kartunya!',
+      'Giliran {n} dapat kartu pertama!',
+      'Sultan {n} dapat kartu duluan!'
     ]
   };
   function line(kind, n, by) {
@@ -758,7 +790,7 @@
 
   // Antre supaya suara yang muncul bersamaan (misal tutup tangan lalu kebakar) tidak bertabrakan:
   // efek suara dulu, lalu suara orang menyebut nama pemain.
-  const SOUND_LEN = { burn: 750, close: 900, joker: 1300 };
+  const SOUND_LEN = { burn: 750, close: 900, joker: 1300, shuffle: 850, first: 650 };
   let soundChain = Promise.resolve();
   function playSound(kind, say) {
     if (!soundOn || !SOUND_LEN[kind]) return;
@@ -788,6 +820,17 @@
       [1046.5, 1318.5, 1568].forEach(f => tone(ctx, { freq: f, start: .48, dur: .7, type: 'triangle', vol: .12 }));
       [2093, 2637, 3136, 2637, 3520].forEach((f, i) => tone(ctx, { freq: f, start: .55 + i * .06, dur: .12, type: 'sine', vol: .06 }));
       if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 160]);
+    } else if (kind === 'shuffle') {
+      // 🔀 kocok kartu: kresek-kresek kartu dikocok (riffle) + "tuk" kartu dirapikan
+      for (let i = 0; i < 10; i++) noise(ctx, { start: i * .05, dur: .07, vol: .2, from: 7000, to: 1800 });
+      tone(ctx, { freq: 200, to: 120, start: .56, dur: .12, type: 'triangle', vol: .18 });
+      if (navigator.vibrate) navigator.vibrate([30, 20, 30, 20, 30, 20, 30]);
+    } else if (kind === 'first') {
+      // ⭐ dapat kartu duluan: "ting-ting" cerah naik + kilau
+      tone(ctx, { freq: 1318.5, dur: .18, type: 'sine', vol: .2 });
+      tone(ctx, { freq: 1760, start: .12, dur: .38, type: 'sine', vol: .2 });
+      tone(ctx, { freq: 2637, start: .12, dur: .28, type: 'triangle', vol: .05 });
+      if (navigator.vibrate) navigator.vibrate(60);
     }
   }
 
@@ -987,6 +1030,7 @@
         : '';
       renderWinner(t);
       renderResets();
+      watchRoles();
       renderView();
       updateInvite();
       updateAddPlayer();
@@ -1090,6 +1134,38 @@
         else toast('🙌 ' + playerName(c) + ' TUTUP TANGAN!', 'close', board.name + ' · +250 poin, pemain lain 0',
           line('close', playerName(c)));
       }, 500);
+    }
+
+    // Pengumuman kocok kartu & dapat kartu duluan: setiap kali ada satu baris yang baru lengkap diisi
+    // semua pemain. Ditunda sebentar (setelah notif tutup tangan & kebakar) dan hanya kalau tidak ada
+    // baris yang masih setengah terisi dan belum ada pemenang.
+    let doneRows = null, rolesTimer = null, rolesWait = false;
+    function watchRoles() {
+      const n = board.rows.filter(row => board.players.every((_, c) => {
+        const v = String(row[c] ?? '').trim();
+        return v !== '' && !isNaN(score(v));
+      })).length;
+      if (doneRows === null || !rolesReady()) { doneRows = n; return; } // baru dimuat: cuma catat
+      if (n > doneRows) rolesWait = true;
+      else if (n < doneRows) rolesWait = false;
+      doneRows = n;
+      if (!rolesWait) return;
+      clearTimeout(rolesTimer);
+      rolesTimer = setTimeout(announceRoles, 1300);
+    }
+    function announceRoles() {
+      rolesWait = false;
+      const res = computeTotals(board), t = res.t;
+      if (board.players.length < 2 || res.pending.length || winnersOf(t).length) return;
+      const max = Math.max(...t), min = Math.min(...t);
+      if (max === min) return;
+      const who = pick => {
+        const a = t.map((v, i) => i).filter(i => pick(t[i])).map(playerName);
+        return a.length > 1 ? a.slice(0, -1).join(', ') + ' dan ' + a[a.length - 1] : a[0];
+      };
+      const shuffler = who(v => v === min), first = who(v => v === max);
+      toast('🔀 Kocok kartu: ' + shuffler, 'shuffle', board.name + ' · nilai terendah', line('shuffle', shuffler));
+      toast('⭐ Dapat kartu duluan: ' + first, 'first', board.name + ' · nilai tertinggi', line('first', first));
     }
 
     function setCell(r, c, v) {
@@ -1566,7 +1642,7 @@
       document.getElementById('targetHint').textContent = fmt(app.target);
     }
     save();
-    if (!applyRemote.done) { applyRemote.done = true; handleInviteAfterLoad(); }
+    if (!applyRemote.done) { applyRemote.done = true; rolesReadyAt = Date.now() + 1500; handleInviteAfterLoad(); }
     const ids = app.boards.map(b => b.id).join(',');
     const shownIds = mounted.map(m => m.id).join(',');
     const wantIds = app.boards.filter(b => shownView() === 'all' || b.id === shownView()).map(b => b.id).join(',');
