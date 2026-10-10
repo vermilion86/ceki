@@ -299,6 +299,7 @@
   dialog.share textarea:focus, dialog.share .lines-pick select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
   dialog.share .set-msg { margin: -6px 0 12px; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #9a3412; background: #fff7ed; }
   dialog.share .set-msg[hidden] { display: none; }
+  dialog.share .set-status { margin: -4px 0 12px; font-size: 12px; font-weight: 600; color: var(--muted); line-height: 1.5; }
   .switch { position: relative; flex: none; width: 44px; height: 26px; }
   .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
   .switch span { position: absolute; inset: 0; border-radius: 999px; background: #cbd5e1; transition: background .15s; pointer-events: none; }
@@ -450,6 +451,7 @@
   .toast.joker { background: linear-gradient(135deg, #7c3aed, #db2777); }
   .toast.shuffle { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
   .toast.first { background: linear-gradient(135deg, #16a34a, #65a30d); }
+  .toast.win { background: linear-gradient(135deg, #f59e0b, #dc2626); }
   .toast.big { font-size: 17px; padding: 12px 20px; }
   .toast small { display: block; font-size: 12px; font-weight: 600; opacity: .9; margin-top: 2px; }
   @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -521,12 +523,16 @@
       <span class="switch"><input type="checkbox" data-set="shuffle"><span></span></span></label>
     <label class="set-row sub"><span>⭐ Dapat kartu duluan</span>
       <span class="switch"><input type="checkbox" data-set="first"><span></span></span></label>
+    <label class="set-row sub"><span>🏆 Pemenang</span>
+      <span class="switch"><input type="checkbox" data-set="win"><span></span></span></label>
 
     <div class="set-title">Kalimat</div>
     <div class="set-row"><span>✍️ Kalimat yang diucapkan<small>Ubah, tambah, atau hapus kalimat lucunya</small></span>
       <button type="button" id="linesOpen">Ubah…</button></div>
 
-    <p class="set-note">Notifikasi tulisan tetap muncul walau suaranya dimatikan. Pengaturan ini hanya berlaku di HP/perangkat ini.</p>
+    <p class="set-note">Notifikasi tulisan tetap muncul walau suaranya dimatikan. Pengaturan ini hanya berlaku di HP/perangkat ini.<br>
+      📱 <b>iPhone:</b> matikan mode senyap (tombol kecil di samping HP, jangan oranye) dan naikkan volume. Ketuk layar sekali dulu supaya suara aktif.</p>
+    <p class="set-status" id="soundStatus"></p>
     <p class="set-msg" id="soundMsg" role="status" hidden></p>
     <div class="row">
       <button type="button" id="soundTest">▶ Coba suara</button>
@@ -543,6 +549,7 @@
         <option value="joker">🃏 Tutup tangan pakai joker</option>
         <option value="shuffle">🔀 Kocok kartu</option>
         <option value="first">⭐ Dapat kartu duluan</option>
+        <option value="win">🏆 Pemenang</option>
       </select>
     </label>
     <textarea id="linesText" rows="8" spellcheck="false" aria-label="Daftar kalimat, satu per baris"></textarea>
@@ -763,29 +770,61 @@
   try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) {}
   // Pengaturan rinci (disimpan per perangkat): fx = efek suara, voice = suara orang, sisanya = kapan berbunyi
   const SET_KEY = 'papan-skor-sound-set';
-  const soundSet = { fx: true, voice: true, burn: true, close: true, shuffle: true, first: true };
+  const soundSet = { fx: true, voice: true, burn: true, close: true, shuffle: true, first: true, win: true };
   try {
     const saved = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
     Object.keys(soundSet).forEach(k => { if (typeof saved[k] === 'boolean') soundSet[k] = saved[k]; });
   } catch (e) {}
   const saveSoundSet = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(soundSet)); } catch (e) {} };
   let actx = null;
+  let audioPrimed = false; // sudah pernah memutar suara hening di dalam sentuhan (syarat iPhone)
+  function setPlaybackSession() {
+    // iPhone (Safari 16.4+): tanpa ini suara Web Audio ikut dibungkam tombol senyap (silent switch) di samping HP
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  }
+  setPlaybackSession();
   function audio() {
     if (!actx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       actx = new AC();
+      actx.onstatechange = () => { if (actx.state !== 'running') audioPrimed = false; };
     }
-    if (actx.state === 'suspended') actx.resume();
+    // iPhone memakai status 'suspended' ATAU 'interrupted' (setelah telepon / pindah aplikasi), jadi bukan cuma 'suspended'
+    if (actx.state !== 'running') {
+      try { const p = actx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    }
     return actx;
   }
-  // Browser HP hanya mengizinkan suara setelah ada sentuhan/ketikan, jadi siapkan audio di interaksi pertama
-  let speechReady = false;
-  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => {
+  // iPhone hanya membuka audio kalau ada sentuhan yang SELESAI (touchend / click). "pointerdown" saja tidak cukup,
+  // dan konteks audio harus memutar sesuatu (walau hening) di dalam sentuhan itu.
+  let speechWarm = 0;
+  function unlockAudio(ev) {
     if (!soundOn) return;
-    audio();
-    if (speech && !speechReady) { speechReady = true; const u = new SpeechSynthesisUtterance(''); u.volume = 0; speech.speak(u); }
-  }, { passive: true }));
+    setPlaybackSession();
+    const ctx = audio();
+    if (ctx && !audioPrimed) {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, 22050);
+        src.connect(ctx.destination);
+        src.start(0);
+        audioPrimed = true;
+      } catch (e) {}
+    }
+    // Suara orang: pemanasan di dalam sentuhan yang sah. Dicoba ulang (maks 3x) kalau belum berhasil.
+    if (speech && speechWarm < 3 && ev && ev.type !== 'pointerup') {
+      speechWarm++;
+      try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; speech.speak(u); } catch (e) {}
+    }
+  }
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+  // Dipanggil saat halaman dibuka lagi (iPhone mematikan audio waktu aplikasi di latar belakang)
+  function reviveAudio() {
+    if (!soundOn) return;
+    if (actx && actx.state !== 'running') audio();
+    if (speech && speech.paused) { try { speech.resume(); } catch (e) {} }
+  }
 
   function tone(ctx, { freq, to, start = 0, dur = .2, type = 'sine', vol = .25 }) {
     const t0 = ctx.currentTime + start;
@@ -835,6 +874,7 @@
       u.rate = 1.05; u.pitch = 1.1; u.volume = 1;
       const fallback = setTimeout(done, 6000); // jaga-jaga kalau onend tidak terpanggil
       u.onend = u.onerror = () => { clearTimeout(fallback); done(); };
+      try { if (speech.paused) speech.resume(); } catch (e) {} // iPhone kadang macet di status "jeda"
       speech.speak(u);
     });
   }
@@ -863,7 +903,7 @@
       'Aduh biyung, {n} kebakar! Sabar, ini ujian.',
       'Kasihan deh {n}, dibakar sama {by}!',
       'Asap di mana-mana! {n} kebakar!',
-      'Yaelah! {n} kebakar, balik ke nol lagi deh!'
+      'Yaelah! {n} kebakar, balik ke rakyat jelata lagi deh!'
     ],
     shuffle: [
       'Giliran {n} mengocok kartu!',
@@ -876,8 +916,16 @@
       '{n} dapat kartu duluan!',
       'Enak banget, {n} dapat kartu duluan!',
       '{n} duluan nih! Silakan ambil kartunya!',
-      'Giliran {n} dapat kartu pertama!',
+      'Giliran adipati {n} dapat kartu pertama!',
       'Sultan {n} dapat kartu duluan!'
+    ],
+    win: [
+      'Selamat! {n} menang! Traktir dong!',
+      'Juara! {n} memenangkan permainan ini!',
+      'Hidup {n}! Sang juara lapak ini!',
+      'Wah, {n} menang! Yang lain jangan nangis ya.',
+      'Mantap jiwa! {n} jadi pemenangnya!',
+      'Raja ceki malam ini adalah {n}!'
     ]
   };
   // Kalimat yang dipakai = bawaan, kecuali sudah diubah lewat ⚙️ → "Ubah kalimat" (disimpan per perangkat)
@@ -903,7 +951,7 @@
 
   // Antre supaya suara yang muncul bersamaan (misal tutup tangan lalu kebakar) tidak bertabrakan:
   // efek suara dulu, lalu suara orang menyebut nama pemain.
-  const SOUND_LEN = { burn: 750, close: 900, joker: 1300, shuffle: 850, first: 650 };
+  const SOUND_LEN = { burn: 750, close: 900, joker: 1300, shuffle: 850, first: 650, win: 2000 };
   let soundChain = Promise.resolve();
   // force = true: untuk tombol "Coba suara", abaikan pilihan "kapan berbunyi" (tapi tetap ikut efek/suara orang)
   function playSound(kind, say, force) {
@@ -950,6 +998,17 @@
       tone(ctx, { freq: 1760, start: .12, dur: .38, type: 'sine', vol: .2 });
       tone(ctx, { freq: 2637, start: .12, dur: .28, type: 'triangle', vol: .05 });
       if (navigator.vibrate) navigator.vibrate(60);
+    } else if (kind === 'win') {
+      // 🏆 pemenang: fanfare naik (do-mi-sol-do-mi) → akord panjang + kilau + tepuk tangan
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+        tone(ctx, { freq: f, start: i * .11, dur: .24, type: 'square', vol: .09 });
+        tone(ctx, { freq: f, start: i * .11, dur: .24, type: 'triangle', vol: .16 });
+      });
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach(f => tone(ctx, { freq: f, start: .62, dur: 1.0, type: 'triangle', vol: .1 }));
+      tone(ctx, { freq: 261.63, start: .62, dur: 1.0, type: 'sine', vol: .18 });
+      [2093, 2637, 3136, 2637, 3520, 3136, 4186].forEach((f, i) => tone(ctx, { freq: f, start: .7 + i * .07, dur: .14, type: 'sine', vol: .05 }));
+      noise(ctx, { start: .6, dur: 1.2, vol: .1, from: 7000, to: 2500 }); // tepuk tangan
+      if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 80, 60, 260]);
     }
   }
 
@@ -972,7 +1031,16 @@
   // ---------- Pengaturan suara (dialog) ----------
   const soundDlg = document.getElementById('soundDlg');
   const setInputs = [...soundDlg.querySelectorAll('input[data-set]')];
+  const soundStatus = document.getElementById('soundStatus');
+  function renderSoundStatus() {
+    const a = !actx ? 'belum aktif ⚠️ (ketuk layar sekali)'
+      : actx.state === 'running' ? 'aktif ✅'
+      : 'belum aktif ⚠️ (' + actx.state + ', ketuk layar sekali)';
+    const v = !speech ? 'tidak didukung browser ini ❌' : voice ? 'tersedia ✅' : 'tersedia ✅ (suara bawaan HP)';
+    soundStatus.textContent = 'Status: efek suara ' + a + ' · suara orang ' + v;
+  }
   function syncSoundDlg() {
+    renderSoundStatus();
     setInputs.forEach(inp => {
       const k = inp.dataset.set;
       inp.checked = k === 'master' ? soundOn : soundSet[k];
@@ -1002,6 +1070,7 @@
     if (!soundSet.fx && !soundSet.voice) return showSoundMsg('Efek suara dan suara orang sama-sama mati, jadi tidak ada yang berbunyi.');
     showSoundMsg('');
     playSound('first', 'Tes suara. Budi dapat kartu duluan!', true);
+    setTimeout(renderSoundStatus, 600);
   });
   soundDlg.addEventListener('close', () => showSoundMsg(''));
 
@@ -1059,13 +1128,13 @@
   function toast(msg, kind, sub, say) {
     const box = document.getElementById('toasts');
     const el = document.createElement('div');
-    el.className = 'toast' + (kind ? ' ' + kind : '') + (kind === 'close' || kind === 'joker' ? ' big' : '');
+    el.className = 'toast' + (kind ? ' ' + kind : '') + (kind === 'close' || kind === 'joker' || kind === 'win' ? ' big' : '');
     el.textContent = msg;
     if (sub) { const sm = document.createElement('small'); sm.textContent = sub; el.appendChild(sm); }
     box.appendChild(el);
     playSound(kind, say);
     while (box.children.length > 3) box.firstElementChild.remove();
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 3500);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, kind === 'win' ? 6000 : 3500);
   }
 
   // ---------- Satu papan skor (lapak) ----------
@@ -1243,8 +1312,31 @@
       updateAddPlayer();
     }
 
+    // Pengumuman pemenang: hanya saat dari "belum ada pemenang" jadi "ada pemenang" (skor >= target).
+    // Ditunda sebentar supaya tidak bunyi saat masih mengetik, dan setelah notif tutup tangan & kebakar.
+    // Render ulang (misal gema data dari server) atau membuka halaman yang pemenangnya sudah ada tidak membunyikan lagi.
+    let hadWin = null, winTimer = null;
+    function watchWinner(winners) {
+      const has = winners.length > 0;
+      if (hadWin === null || !rolesReady()) { hadWin = has; return; } // baru dimuat: cuma catat
+      const was = hadWin;
+      hadWin = has;
+      if (!has) { clearTimeout(winTimer); return; }
+      if (was) return;
+      clearTimeout(winTimer);
+      winTimer = setTimeout(() => {
+        const t = computeTotals(board).t, now = winnersOf(t);
+        if (!now.length) return; // angka diubah lagi, sudah bukan pemenang
+        const names = now.map(playerName);
+        const who = names.length > 1 ? names.slice(0, -1).join(', ') + ' dan ' + names[names.length - 1] : names[0];
+        toast('🏆 ' + who + (names.length > 1 ? ' seri, sama-sama MENANG!' : ' MENANG!'), 'win',
+          board.name + ' · Total ' + fmt(Math.max(...t)) + ' (target ' + fmt(app.target) + ')', line('win', who));
+      }, 1500);
+    }
+
     function renderWinner(t) {
       const winners = winnersOf(t);
+      watchWinner(winners);
       const names = namesRow.querySelectorAll('.name-cell');
       const tots = totalsRow.querySelectorAll('.total');
       board.players.forEach((_, i) => {
@@ -1886,6 +1978,7 @@
   // Saat HP dibuka lagi / pindah dari aplikasi lain: pastikan tetap tersambung & kirim yang tertunda
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
+    reviveAudio();
     if (!es || es.readyState === 2) connect();
     flush();
   });
